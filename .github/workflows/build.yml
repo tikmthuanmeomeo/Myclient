@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -31,3 +33,11 @@ jobs:
           path: |
             proj/build/libs/*.jar
             !proj/build/libs/*-sources.jar
+
+      - name: Dang jar len Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JAR=$(ls proj/build/libs/*.jar | grep -v sources | head -1)
+          gh release delete latest -y --cleanup-tag || true
+          gh release create latest "$JAR" --title "latest build" --notes "Build moi nhat"
