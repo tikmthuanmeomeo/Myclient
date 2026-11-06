@@ -25,7 +25,12 @@ jobs:
 
       - name: Build
         working-directory: proj
-        run: gradle build --no-daemon
+        run: |
+          set -o pipefail
+          gradle build --no-daemon 2>&1 | tee build.log || {
+            grep -E "error:|: error" build.log | head -20 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v4
         with:
