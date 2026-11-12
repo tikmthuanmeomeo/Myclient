@@ -22,7 +22,6 @@ import dev.luminous.mod.modules.impl.client.ClientSetting;
 import dev.luminous.mod.modules.impl.combat.AutoAnchor;
 import dev.luminous.mod.modules.impl.combat.AutoCrystal;
 import dev.luminous.mod.modules.impl.combat.CevBreaker;
-import dev.luminous.mod.modules.impl.combat.Criticals;
 import dev.luminous.mod.modules.impl.exploit.Blink;
 import dev.luminous.mod.modules.impl.movement.ElytraFly;
 import dev.luminous.mod.modules.impl.movement.Velocity;
@@ -917,7 +916,7 @@ public class PacketMine extends Module {
             digSpeed *= (float) mc.player.getAttributeInstance(EntityAttributes.PLAYER_SUBMERGED_MINING_SPEED).getValue();
         }
         boolean inWeb = checkWeb.getValue() && Alien.PLAYER.isInWeb(mc.player) && mc.world.getBlockState(breakPos).getBlock() == Blocks.COBWEB;
-        if ((!mc.player.isOnGround() || inWeb) && INSTANCE.checkGround.getValue() && (!smart.getValue() || Criticals.INSTANCE.mode.is(Criticals.Mode.Ground) && Criticals.INSTANCE.isOn() || mc.player.isFallFlying() || inWeb)) {
+        if ((!mc.player.isOnGround() || inWeb) && INSTANCE.checkGround.getValue() && (!smart.getValue() || mc.player.isFallFlying() || inWeb)) {
             digSpeed /= 5;
         }
         return (digSpeed < 0 ? 0 : digSpeed);

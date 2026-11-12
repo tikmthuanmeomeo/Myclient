@@ -12,7 +12,7 @@ import dev.luminous.asm.accessors.ILivingEntity;
 import dev.luminous.mod.modules.Module;
 import dev.luminous.mod.modules.impl.combat.AutoAnchor;
 import dev.luminous.mod.modules.impl.combat.AutoCrystal;
-import dev.luminous.mod.modules.impl.combat.Criticals;
+import dev.luminous.api.utils.player.InteractUtil;
 import dev.luminous.mod.modules.settings.impl.BooleanSetting;
 import dev.luminous.mod.modules.settings.impl.StringSetting;
 import net.minecraft.block.Blocks;
@@ -120,11 +120,11 @@ public class FakePlayer extends Module {
     @EventListener
     public void onAttack(PacketEvent.Send event) {
         if (event.getPacket() instanceof PlayerInteractEntityC2SPacket packet) {
-            if (Criticals.getInteractType(packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK && Criticals.getEntity(packet) == fakePlayer) {
+            if (InteractUtil.getInteractType(packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK && InteractUtil.getEntity(packet) == fakePlayer) {
                 mc.world.playSound(mc.player, fakePlayer.getX(), fakePlayer.getY(), fakePlayer.getZ(), SoundEvents.ENTITY_PLAYER_HURT, SoundCategory.PLAYERS, 1f, 1f);
                 float damage = DamageUtils.getAttackDamage(mc.player, fakePlayer);
-                if ((mc.player.fallDistance > 0f || Criticals.INSTANCE.isOn() && !Criticals.INSTANCE.mode.is(Criticals.Mode.Ground) && (mc.player.isOnGround() || !Criticals.INSTANCE.onlyGround.getValue()))
-                        && (!mc.player.isOnGround() || Criticals.INSTANCE.isOn() && !Criticals.INSTANCE.mode.is(Criticals.Mode.Ground))
+                if (mc.player.fallDistance > 0f
+                        && !mc.player.isOnGround()
                         && !mc.player.isClimbing()
                         && !mc.player.isTouchingWater()
                         && !mc.player.hasStatusEffect(StatusEffects.BLINDNESS)

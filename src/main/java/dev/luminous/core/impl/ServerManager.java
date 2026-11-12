@@ -10,7 +10,7 @@ import dev.luminous.api.utils.math.MathUtil;
 import dev.luminous.api.utils.math.Timer;
 import dev.luminous.mod.modules.impl.client.AntiCheat;
 import dev.luminous.mod.modules.impl.client.Fonts;
-import dev.luminous.mod.modules.impl.combat.Criticals;
+import dev.luminous.api.utils.player.InteractUtil;
 import dev.luminous.mod.modules.impl.misc.AutoLog;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
@@ -60,7 +60,7 @@ public class ServerManager implements Wrapper {
         if (AntiCheat.INSTANCE.attackCDFix.getValue()) {
             if (event.isCancelled()) return;
             Packet<?> packet = event.getPacket();
-            if (packet instanceof HandSwingC2SPacket || packet instanceof PlayerInteractEntityC2SPacket && Criticals.getInteractType((PlayerInteractEntityC2SPacket) packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
+            if (packet instanceof HandSwingC2SPacket || packet instanceof PlayerInteractEntityC2SPacket && InteractUtil.getInteractType((PlayerInteractEntityC2SPacket) packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
                 mc.player.resetLastAttackedTicks();
             } else if (packet instanceof UpdateSelectedSlotC2SPacket packet2) {
                 if (lastSlot != packet2.getSelectedSlot()) {

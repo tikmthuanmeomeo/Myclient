@@ -1,5 +1,7 @@
 package dev.luminous.mod.modules.impl.combat;
 
+import dev.luminous.api.utils.player.InteractUtil;
+
 import dev.luminous.api.events.eventbus.EventListener;
 import dev.luminous.api.events.eventbus.EventPriority;
 import dev.luminous.api.events.impl.PacketEvent;
@@ -44,9 +46,9 @@ public class AntiWeak extends Module {
         if (mc.player.getMainHandStack().getItem() instanceof SwordItem)
             return;
         if (!delayTimer.passedMs(delay.getValue())) return;
-        if (event.getPacket() instanceof PlayerInteractEntityC2SPacket packet && Criticals.getInteractType(packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
+        if (event.getPacket() instanceof PlayerInteractEntityC2SPacket packet && InteractUtil.getInteractType(packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
 
-            if (onlyCrystal.getValue() && !(Criticals.getEntity(packet) instanceof EndCrystalEntity))
+            if (onlyCrystal.getValue() && !(InteractUtil.getEntity(packet) instanceof EndCrystalEntity))
                 return;
             lastPacket = packet;
             delayTimer.reset();

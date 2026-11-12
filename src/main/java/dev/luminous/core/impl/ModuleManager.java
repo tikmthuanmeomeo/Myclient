@@ -79,7 +79,6 @@ public class ModuleManager implements Wrapper {
         addModule(new Breaker());
         addModule(new AutoLog());
         addModule(new AutoEZ());
-        addModule(new SelfTrap());
         addModule(new Sorter());
         addModule(new AutoMend());
         addModule(new AutoPot());
@@ -111,7 +110,6 @@ public class ModuleManager implements Wrapper {
         addModule(new AntiCheat());
         addModule(new ItemsCounter());
         addModule(new Fov());
-        addModule(new Criticals());
         addModule(new CevBreaker());
         addModule(new Crosshair());
         addModule(new Chams());
@@ -181,7 +179,6 @@ public class ModuleManager implements Wrapper {
         addModule(new Sprint());
         addModule(new Strafe());
         addModule(new Step());
-        addModule(new Surround());
         addModule(new TotemParticle());
         addModule(new Velocity());
         addModule(new ViewModel());
@@ -343,7 +340,6 @@ public class ModuleManager implements Wrapper {
                             addModule(new Breaker());
                             addModule(new AutoLog());
                             addModule(new AutoEZ());
-                            addModule(new SelfTrap());
                             addModule(new Sorter());
                             addModule(new AutoMend());
                             addModule(new AutoPot());
@@ -375,7 +371,6 @@ public class ModuleManager implements Wrapper {
                             addModule(new AntiCheat());
                             addModule(new ItemsCounter());
                             addModule(new Fov());
-                            addModule(new Criticals());
                             addModule(new CevBreaker());
                             addModule(new Crosshair());
                             addModule(new Chams());
@@ -445,7 +440,6 @@ public class ModuleManager implements Wrapper {
                             addModule(new Sprint());
                             addModule(new Strafe());
                             addModule(new Step());
-                            addModule(new Surround());
                             addModule(new TotemParticle());
                             addModule(new Velocity());
                             addModule(new ViewModel());

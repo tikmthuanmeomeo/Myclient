@@ -8,8 +8,6 @@ import dev.luminous.api.utils.path.BaritoneUtil;
 import dev.luminous.api.utils.player.EntityUtil;
 import dev.luminous.api.utils.player.MovementUtil;
 import dev.luminous.mod.modules.Module;
-import dev.luminous.mod.modules.impl.combat.SelfTrap;
-import dev.luminous.mod.modules.impl.combat.Surround;
 import dev.luminous.mod.modules.settings.impl.BooleanSetting;
 import dev.luminous.mod.modules.settings.impl.EnumSetting;
 import dev.luminous.mod.modules.settings.impl.SliderSetting;
@@ -61,7 +59,7 @@ public class Step extends Module {
 
     @EventListener
     public void onUpdate(UpdateEvent event) {
-        if (pathingPause.getValue() && BaritoneUtil.isActive() || sneakingPause.getValue() && mc.player.isSneaking() || inBlockPause.getValue() && EntityUtil.isInsideBlock() || mc.player.isInLava() || mc.player.isTouchingWater() || inWebPause.getValue() && Alien.PLAYER.isInWeb(mc.player) || !mc.player.isOnGround() || onlyMoving.getValue() && !MovementUtil.isMoving() || surroundPause.getValue() && (Surround.INSTANCE.isOn() || SelfTrap.INSTANCE.isOn())) {
+        if (pathingPause.getValue() && BaritoneUtil.isActive() || sneakingPause.getValue() && mc.player.isSneaking() || inBlockPause.getValue() && EntityUtil.isInsideBlock() || mc.player.isInLava() || mc.player.isTouchingWater() || inWebPause.getValue() && Alien.PLAYER.isInWeb(mc.player) || !mc.player.isOnGround() || onlyMoving.getValue() && !MovementUtil.isMoving()) {
             setStepHeight(0.6f);
             return;
         }

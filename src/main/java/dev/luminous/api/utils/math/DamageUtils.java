@@ -4,7 +4,6 @@ import dev.luminous.Alien;
 import dev.luminous.api.utils.combat.CombatUtil;
 import dev.luminous.core.impl.PlayerManager;
 import dev.luminous.mod.modules.impl.client.ClientSetting;
-import dev.luminous.mod.modules.impl.combat.Criticals;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMaps;
@@ -200,8 +199,8 @@ public class DamageUtils {
 
             // Factor critical hit
             if (charge > 0.9f
-                    && (attacker.fallDistance > 0f || attacker == mc.player && Criticals.INSTANCE.isOn() && !Criticals.INSTANCE.mode.is(Criticals.Mode.Ground) && (mc.player.isOnGround() || !Criticals.INSTANCE.onlyGround.getValue()))
-                    && (!attacker.isOnGround() || attacker == mc.player && Criticals.INSTANCE.isOn() && !Criticals.INSTANCE.mode.is(Criticals.Mode.Ground))
+                    && attacker.fallDistance > 0f
+                    && !attacker.isOnGround()
                     && !attacker.isClimbing()
                     && !attacker.isTouchingWater()
                     && !attacker.hasStatusEffect(StatusEffects.BLINDNESS)

@@ -94,7 +94,7 @@ public class Blocker extends Module {
                 }
             }
         }
-        if (face.getValue() && (!onlySurround.getValue() || Surround.INSTANCE.isOn() || SelfTrap.INSTANCE.isOn())) {
+        if (face.getValue() && !onlySurround.getValue()) {
             for (double x : offset) {
                 for (double z : offset) {
                     for (Direction i : Direction.values()) {
@@ -148,7 +148,7 @@ public class Blocker extends Module {
                 }
             }
         }
-        if (feet.getValue() && (!onlySurround.getValue() || Surround.INSTANCE.isOn() || SelfTrap.INSTANCE.isOn())) {
+        if (feet.getValue() && !onlySurround.getValue()) {
             for (double x : offset) {
                 for (double z : offset) {
                     for (Direction i : Direction.values()) {
@@ -176,7 +176,7 @@ public class Blocker extends Module {
             }
         }
 
-        if (feet.getValue() && extend.getValue() && (!onlySurround.getValue() || Surround.INSTANCE.isOn() || SelfTrap.INSTANCE.isOn())) {
+        if (feet.getValue() && extend.getValue() && !onlySurround.getValue()) {
             for (double x : offset) {
                 for (double z : offset) {
                     for (Direction i : Direction.values()) {

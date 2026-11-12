@@ -35,7 +35,7 @@ public final class WeatherTheme {
     public static final Map<String, String[]> PANELS = new LinkedHashMap<>();
 
     static {
-        PANELS.put("Combat", new String[]{"AntiRegear", "SelfTrap", "Surround", "Criticals", "AutoCrystal",
+        PANELS.put("Combat", new String[]{"AntiRegear", "AutoCrystal",
                 "PistonCrystal", "TotemPops", "AutoRegear"});
         PANELS.put("Movement", new String[]{"ElytraFly", "FireworkSwap", "Velocity", "Sprint"});
         PANELS.put("Render", new String[]{"NameTags", "NoRender", "HUD", "FullBright", "Skybox"});

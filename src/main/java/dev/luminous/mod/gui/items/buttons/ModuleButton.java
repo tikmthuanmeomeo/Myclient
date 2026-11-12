@@ -76,6 +76,7 @@ public class ModuleButton
         Item keyItem = null;
         if (this.pageSetting == null) {
             for (Setting setting : this.module.getSettings()) {
+                if (setting == this.module.drawn) continue;
                 Item item = makeItem(setting);
                 if (item == null) continue;
                 if (isKey(setting)) {
@@ -90,7 +91,7 @@ public class ModuleButton
             Section last = null;
             try {
                 for (Setting setting : this.module.getSettings()) {
-                    if (setting == this.pageSetting) continue;
+                    if (setting == this.pageSetting || setting == this.module.drawn) continue;
                     Item item = makeItem(setting);
                     if (item == null) continue;
                     if (isKey(setting)) {

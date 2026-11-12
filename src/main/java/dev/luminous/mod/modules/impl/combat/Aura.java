@@ -1,5 +1,7 @@
 package dev.luminous.mod.modules.impl.combat;
 
+import dev.luminous.api.utils.player.InteractUtil;
+
 import dev.luminous.Alien;
 import dev.luminous.api.events.eventbus.EventListener;
 import dev.luminous.api.events.impl.ClientTickEvent;
@@ -178,7 +180,7 @@ public class Aura extends Module {
     public void onPacket(PacketEvent.Send event) {
         if (reset.getValue()) {
             Packet<?> packet = event.getPacket();
-            if (packet instanceof HandSwingC2SPacket || packet instanceof PlayerInteractEntityC2SPacket && Criticals.getInteractType((PlayerInteractEntityC2SPacket) packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
+            if (packet instanceof HandSwingC2SPacket || packet instanceof PlayerInteractEntityC2SPacket && InteractUtil.getInteractType((PlayerInteractEntityC2SPacket) packet) == PlayerInteractEntityC2SPacket.InteractType.ATTACK) {
                 tick.reset();
             }
         }

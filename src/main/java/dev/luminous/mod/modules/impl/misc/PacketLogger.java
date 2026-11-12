@@ -5,7 +5,7 @@ import dev.luminous.api.events.impl.EntityVelocityUpdateEvent;
 import dev.luminous.api.events.impl.PacketEvent;
 import dev.luminous.core.impl.CommandManager;
 import dev.luminous.mod.modules.Module;
-import dev.luminous.mod.modules.impl.combat.Criticals;
+import dev.luminous.api.utils.player.InteractUtil;
 import dev.luminous.mod.modules.settings.impl.BooleanSetting;
 import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
 import net.minecraft.network.packet.c2s.play.*;
@@ -107,7 +107,7 @@ public class PacketLogger extends Module {
             logPacket("Pong - %d", packet.getParameter());
         }
         if (event.getPacket() instanceof PlayerInteractEntityC2SPacket packet && interactEntity.getValue()) {
-            logPacket("InteractEntity - Entity: %s, id: %s", Criticals.getEntity(packet).getName().getString(), Criticals.getEntity(packet).getId());
+            logPacket("InteractEntity - Entity: %s, id: %s", InteractUtil.getEntity(packet).getName().getString(), InteractUtil.getEntity(packet).getId());
         }
         if (event.getPacket() instanceof PlayerInteractBlockC2SPacket packet && interactBlock.getValue()) {
             BlockHitResult blockHitResult = packet.getBlockHitResult();

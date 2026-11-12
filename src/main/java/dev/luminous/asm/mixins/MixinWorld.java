@@ -3,7 +3,6 @@ package dev.luminous.asm.mixins;
 import dev.luminous.Alien;
 import dev.luminous.api.utils.combat.CombatUtil;
 import dev.luminous.mod.modules.impl.client.ClientSetting;
-import dev.luminous.mod.modules.impl.combat.SelfTrap;
 import dev.luminous.mod.modules.impl.player.InteractTweaks;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -23,10 +22,6 @@ public abstract class MixinWorld {
     @Inject(method = "getBlockState", at = @At("HEAD"), cancellable = true)
     public void blockStateHook(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
         if (mc.world != null && mc.world.isInBuildLimit(pos)) {
-            if (SelfTrap.airList.contains(pos)) {
-                cir.setReturnValue(Blocks.AIR.getDefaultState());
-                return;
-            }
             if (!ClientSetting.INSTANCE.mioCompatible.getValue()) {
                 boolean terrainIgnore = CombatUtil.terrainIgnore;
                 BlockPos modifyPos = CombatUtil.modifyPos;
