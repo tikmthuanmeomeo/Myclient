@@ -56,8 +56,6 @@ public class ModuleManager implements Wrapper {
         addModule(new NoTerrainScreen());
         addModule(new AutoCrystal());
         addModule(new Ambience());
-        addModule(new TotemPops());
-        addModule(new FireworkSwap());
         addModule(new FullBright());
         addModule(new Skybox());
         addModule(new HotbarSaver());
@@ -175,7 +173,6 @@ public class ModuleManager implements Wrapper {
         addModule(new SafeWalk());
         addModule(new NoJumpDelay());
         addModule(new Speed());
-        addModule(new Sprint());
         addModule(new Strafe());
         addModule(new Step());
         addModule(new TotemParticle());
@@ -435,7 +432,6 @@ public class ModuleManager implements Wrapper {
                             addModule(new SafeWalk());
                             addModule(new NoJumpDelay());
                             addModule(new Speed());
-                            addModule(new Sprint());
                             addModule(new Strafe());
                             addModule(new Step());
                             addModule(new TotemParticle());

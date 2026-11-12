@@ -108,7 +108,8 @@ public class ClickGuiScreen extends Screen {
         ClickGui gui = ClickGui.getInstance();
         if (gui.weather.getValue()) {
             WeatherEffects.render(context, w, h, gui.rain.getValue(), gui.lightning.getValue(),
-                    gui.rainAmount.getValueInt(), gui.lightningRate.getValueFloat());
+                    gui.rainAmount.getValueInt(), gui.lightningRate.getValueFloat(),
+                    gui.weatherSound.getValue(), gui.weatherVolume.getValueFloat());
         }
 
         drawTitle(context, w);

@@ -215,7 +215,7 @@ public class ElytraFly extends Module {
                     }
                 }
                 if (mc.options.forwardKey.isPressed() || mc.options.backKey.isPressed() || mc.options.leftKey.isPressed() || mc.options.rightKey.isPressed()) {
-                    yaw = Sprint.getSprintYaw(mc.player.getYaw());
+                    yaw = MovementUtil.getSprintYaw(mc.player.getYaw());
                 } else if (motionStop.getValue()) {
                     setX(0);
                     setZ(0);

@@ -3,6 +3,8 @@ package dev.luminous.mod.gui;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.luminous.api.utils.Wrapper;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.client.render.*;
 import org.joml.Matrix4f;
 
@@ -20,6 +22,9 @@ public final class WeatherEffects implements Wrapper {
     private static long lastFrame = 0L;
     private static long nextStrike = 0L;
     private static long lastStrikeTime = 0L;
+    private static long nextRainSound = 0L;
+    private static long thunderAt = 0L;
+    private static float thunderVolume = 0.6f;
 
     private WeatherEffects() {
     }
@@ -35,11 +40,23 @@ public final class WeatherEffects implements Wrapper {
         long life = 560;
     }
 
-    public static void render(DrawContext ctx, int w, int h, boolean rainOn, boolean lightningOn, int rainAmount, float intensity) {
+    public static void render(DrawContext ctx, int w, int h, boolean rainOn, boolean lightningOn, int rainAmount, float intensity, boolean soundOn, float volume) {
         long now = System.currentTimeMillis();
         float dt = lastFrame == 0 ? 0.016f : Math.min(0.05f, (now - lastFrame) / 1000f);
         lastFrame = now;
 
+        if (soundOn && volume > 0f) {
+            if (rainOn && now >= nextRainSound) {
+                // campfire crackle at a high pitch sounds like something sizzling in a pan
+                nextRainSound = now + 90 + RNG.nextInt(170);
+                float pitch = 1.5f + RNG.nextFloat() * 0.6f;
+                mc.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.BLOCK_CAMPFIRE_CRACKLE, pitch, volume * 0.5f));
+            }
+            if (thunderAt != 0L && now >= thunderAt) {
+                thunderAt = 0L;
+                mc.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, 0.9f + RNG.nextFloat() * 0.2f, thunderVolume));
+            }
+        }
         if (rainOn) {
             drawRain(ctx, w, h, rainAmount, dt);
         }
@@ -48,6 +65,11 @@ public final class WeatherEffects implements Wrapper {
             if (now >= nextStrike) {
                 BOLTS.add(makeBolt(w, h, now));
                 lastStrikeTime = now;
+                if (soundOn && volume > 0f) {
+                    mc.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT, 1.0f + RNG.nextFloat() * 0.2f, volume * 0.7f));
+                    thunderVolume = volume;
+                    thunderAt = now + 250 + RNG.nextInt(500);
+                }
                 nextStrike = now + (long) ((2200 + RNG.nextInt(5200)) / Math.max(0.3f, intensity));
             }
             drawBolts(ctx, w, h, now);

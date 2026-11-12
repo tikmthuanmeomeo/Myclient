@@ -136,6 +136,9 @@ public class ModuleButton
             this.sections.sort((a, b) -> Integer.compare(a.page.ordinal(), b.page.ordinal()));
             if (!this.sections.isEmpty()) this.sections.get(0).header.open = true;
         }
+        if (this.module instanceof dev.luminous.mod.modules.impl.player.HotbarSaver saver) {
+            this.commonItems.add(new HotbarSlotsButton(saver));
+        }
         if (keyItem != null) this.commonItems.add(keyItem);
 
         ArrayList<Item> newItems = new ArrayList<>();

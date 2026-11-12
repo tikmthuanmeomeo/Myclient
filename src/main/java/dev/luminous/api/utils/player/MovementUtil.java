@@ -110,4 +110,27 @@ public class MovementUtil implements Wrapper {
         if (mc.player.isSneaking()) defaultSpeed /= 5;
         return defaultSpeed;
     }
+
+    public static float getSprintYaw(float yaw) {
+        net.minecraft.client.option.GameOptions o = net.minecraft.client.MinecraftClient.getInstance().options;
+        if (o.forwardKey.isPressed() && !o.backKey.isPressed()) {
+            if (o.leftKey.isPressed() && !o.rightKey.isPressed()) {
+                yaw -= 45f;
+            } else if (o.rightKey.isPressed() && !o.leftKey.isPressed()) {
+                yaw += 45f;
+            }
+        } else if (o.backKey.isPressed() && !o.forwardKey.isPressed()) {
+            yaw += 180f;
+            if (o.leftKey.isPressed() && !o.rightKey.isPressed()) {
+                yaw += 45f;
+            } else if (o.rightKey.isPressed() && !o.leftKey.isPressed()) {
+                yaw -= 45f;
+            }
+        } else if (o.leftKey.isPressed() && !o.rightKey.isPressed()) {
+            yaw -= 90f;
+        } else if (o.rightKey.isPressed() && !o.leftKey.isPressed()) {
+            yaw += 90f;
+        }
+        return net.minecraft.util.math.MathHelper.wrapDegrees(yaw);
+    }
 }

@@ -48,6 +48,8 @@ public class ClickGui
     public final SliderSetting rainAmount = this.add(new SliderSetting("RainAmount", 160, 0, 600, weather::isOpen));
     public final BooleanSetting lightning = add(new BooleanSetting("Lightning", true, weather::isOpen));
     public final SliderSetting lightningRate = this.add(new SliderSetting("LightningRate", 1, 0.3, 3, 0.1, weather::isOpen));
+    public final BooleanSetting weatherSound = add(new BooleanSetting("WeatherSound", true, weather::isOpen));
+    public final SliderSetting weatherVolume = this.add(new SliderSetting("WeatherVolume", 0.6, 0, 1, 0.05, weather::isOpen));
 
     public final BooleanSetting elements = add(new BooleanSetting("Elements", false).setParent().injectTask(this::a));
     public final BooleanSetting line = add(new BooleanSetting("Line", true, elements::isOpen));

@@ -185,7 +185,7 @@ public class Speed extends Module {
             for (Entity entity : Alien.THREAD.getEntities()) {
                 Box entityBox = entity.getBoundingBox();
                 if (boat.getValue() && mc.player.isOnGround() && entity instanceof BoatEntity && box.intersects(entityBox.expand(boatExpand.getValue()))) {
-                    double yaw = Math.toRadians(Sprint.getSprintYaw(mc.player.getYaw()));
+                    double yaw = Math.toRadians(MovementUtil.getSprintYaw(mc.player.getYaw()));
                     double boost = boatSpeed.getValue();
                     mc.player.setVelocity(-Math.sin(yaw) * boost, boatJump.getValue(), Math.cos(yaw) * boost);
                     return;
@@ -194,7 +194,7 @@ public class Speed extends Module {
                 }
             }
 
-            double yaw = Math.toRadians(Sprint.getSprintYaw(mc.player.getYaw()));
+            double yaw = Math.toRadians(MovementUtil.getSprintYaw(mc.player.getYaw()));
             double boost = this.collideSpeed.getValue() * collisions;
             mc.player.addVelocity(-Math.sin(yaw) * boost, 0.0, Math.cos(yaw) * boost);
         }
