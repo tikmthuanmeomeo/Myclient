@@ -1,0 +1,48 @@
+name: build
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Giai nen project.zip
+        run: unzip -q project.zip -d proj
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Build
+        working-directory: proj
+        run: |
+          set -o pipefail
+          gradle build --no-daemon 2>&1 | tee build.log || {
+            grep -E "error:|: error" build.log | head -20 | while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyClient-jar
+          path: |
+            proj/build/libs/*.jar
+            !proj/build/libs/*-sources.jar
+
+      - name: Dang jar len Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JAR=$(ls proj/build/libs/*.jar | grep -v sources | head -1)
+          gh release delete latest -y --cleanup-tag || true
+          gh release create latest "$JAR" --title "latest build" --notes "Build moi nhat"
