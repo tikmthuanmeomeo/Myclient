@@ -5,6 +5,7 @@ import dev.luminous.api.utils.render.ColorUtil;
 import dev.luminous.api.utils.render.Render2DUtil;
 import dev.luminous.core.impl.CommandManager;
 import dev.luminous.mod.gui.ClickGuiScreen;
+import dev.luminous.mod.gui.WeatherTheme;
 import dev.luminous.mod.modules.impl.client.ClickGui;
 import dev.luminous.mod.modules.settings.impl.ColorSetting;
 import net.minecraft.client.gui.DrawContext;
@@ -178,7 +179,7 @@ public class PickerButton extends Button {
     public void drawScreen(DrawContext context, int mouseX, int mouseY, float partialTicks) {
         matrixStack = context.getMatrices();
         Color color = ClickGui.getInstance().color.getValue();
-        Render2DUtil.rect(context.getMatrices(), this.x, this.y, this.x + (float) this.width + 7.0f, this.y + (float) this.height - 0.5f, this.getState() ? (!this.isHovering(mouseX, mouseY) ? ColorUtil.injectAlpha(color, ClickGui.getInstance().alpha.getValueInt()).getRGB() : ColorUtil.injectAlpha(color, ClickGui.getInstance().hoverAlpha.getValueInt()).getRGB()) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor));
+        Render2DUtil.rect(context.getMatrices(), this.x, this.y, this.x + (float) this.width + 7.0f, this.y + (float) this.height - 0.5f, this.getState() ? (!this.isHovering(mouseX, mouseY) ? WeatherTheme.ROW_ON_LEFT : WeatherTheme.ROW_ON_LEFT_HOVER) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor));
         Render2DUtil.rect(matrixStack, x - 1.5f + (float) width + 0.6f - 0.5f, y + 4.0f, x + (float) width + 7.0f - 2.5f, y + (float) height - 5.0f, ColorUtil.injectAlpha(setting.getValue(), 255).getRGB());
 
         drawString(getName(), x + 2.3f, y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), enableTextColor);
@@ -187,7 +188,7 @@ public class PickerButton extends Button {
             drawPicker(setting, (int) x, (int) y + height, (int) x, (int) y + 103, (int) x, (int) y + 95, mouseX, mouseY);
             drawString("copy", x + 2.3f, y + 96 + height - (float) ClickGuiScreen.getInstance().getTextOffset(), isInsideCopy(mouseX, mouseY) ? enableTextColor : defaultTextColor);
             drawString("paste", x + (float) width - 2.3f - getWidth("paste") + 11.7f - 4.6f, y + 96 + height - (float) ClickGuiScreen.getInstance().getTextOffset(), isInsidePaste(mouseX, mouseY) ? enableTextColor : defaultTextColor);
-            drawString("sync", x + 2.3f, y + 96 + getFontHeight() + height - (float) ClickGuiScreen.getInstance().getTextOffset(), setting.sync ? ColorUtil.injectAlpha(color, 255).getRGB() : isInsideRainbow(mouseX, mouseY) ? enableTextColor : defaultTextColor);
+            drawString("sync", x + 2.3f, y + 96 + getFontHeight() + height - (float) ClickGuiScreen.getInstance().getTextOffset(), setting.sync ? WeatherTheme.ACCENT : isInsideRainbow(mouseX, mouseY) ? enableTextColor : defaultTextColor);
         }
     }
 

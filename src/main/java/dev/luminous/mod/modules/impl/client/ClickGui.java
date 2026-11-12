@@ -54,14 +54,14 @@ public class ClickGui
     public final ColorSetting gear = add(new ColorSetting("Gear", 0xFFB8D8FF, elements::isOpen).injectBoolean(true));
 
     public final BooleanSetting colors = add(new BooleanSetting("Colors", false).setParent().injectTask(this::b));
-    public final ColorSetting color = add(new ColorSetting("Color", colors::isOpen));
+    public final ColorSetting color = add(new ColorSetting("Color", 0xFF1F78C8, colors::isOpen));
     public final ColorSetting hoverColor = add(new ColorSetting("HoverColor", -2007673515, colors::isOpen));
     public final ColorSetting defaultColor = add(new ColorSetting("DefaultColor", new Color(255, 255, 255, 0), colors::isOpen));
     public final ColorSetting defaultTextColor = add(new ColorSetting("DefaultTextColor", 0xFFC8D4F0, colors::isOpen));
     public final ColorSetting enableTextColor = add(new ColorSetting("EnableTextColor", -1, colors::isOpen));
     public final ColorSetting backGround = add(new ColorSetting("BackGround", 0x77000000, colors::isOpen).injectBoolean(true));
     public final ColorSetting tint = add(new ColorSetting("Tint", new Color(0, 0, 0, 36)).injectBoolean(true));
-    public final ColorSetting endColor = add(new ColorSetting("End", new Color(255, 0, 0, 80), () -> tint.booleanValue));
+    public final ColorSetting endColor = add(new ColorSetting("End", new Color(31, 120, 200, 80), () -> tint.booleanValue));
 
     public double alphaValue;
     private final Animation animation = new Animation();

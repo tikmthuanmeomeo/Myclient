@@ -85,19 +85,19 @@ public class AutoCrystal extends Module {
     private final SliderSetting reserve = add(new SliderSetting("Reserve", 2.0, 0.0, 10.0, () -> page.getValue() == Page.General).setSuffix("hp"));
     private final BooleanSetting balance = add(new BooleanSetting("Balance", true, () -> page.getValue() == Page.General).setParent());
     private final SliderSetting balanceOffset = add(new SliderSetting("BalanceOffset", 0, -20, 20, .1, () -> page.getValue() == Page.General && balance.isOpen()).setSuffix("hp"));
-    private final BooleanSetting place = add(new BooleanSetting("Place", true, () -> page.getValue() == Page.General).setParent());
-    public final SliderSetting placeRange = add(new SliderSetting("PlaceRange", 5.0, 0.0, 6, 0.01, () -> page.getValue() == Page.General && place.isOpen()).setSuffix("m"));
-    private final SliderSetting placeDelay = add(new SliderSetting("PlaceDelay", 300, 0, 1000, () -> page.getValue() == Page.General && place.isOpen()).setSuffix("ms"));
-    private final EnumSetting<SwapMode> autoSwap = add(new EnumSetting<>("AutoSwap", SwapMode.None, () -> page.getValue() == Page.General && place.isOpen()));
-    private final BooleanSetting afterBreak = add(new BooleanSetting("AfterBreak", true, () -> page.getValue() == Page.General && place.isOpen()));
-    private final BooleanSetting forcePlace = add(new BooleanSetting("ForcePlace", false, () -> page.getValue() == Page.General && place.isOpen()));
-    private final BooleanSetting breakSetting = add(new BooleanSetting("Break", true, () -> page.getValue() == Page.General).setParent());
-    public final SliderSetting breakRange = add(new SliderSetting("BreakRange", 4.0, 0.0, 6, 0.01, () -> page.getValue() == Page.General && breakSetting.isOpen()).setSuffix("m"));
-    private final SliderSetting breakDelay = add(new SliderSetting("BreakDelay", 300, 0, 1000, () -> page.getValue() == Page.General && breakSetting.isOpen()).setSuffix("ms"));
-    private final SliderSetting minAge = add(new SliderSetting("MinAge", 0, 0, 20, () -> page.getValue() == Page.General && breakSetting.isOpen()).setSuffix("tick"));
-    private final BooleanSetting breakRemove = add(new BooleanSetting("Remove", false, () -> page.getValue() == Page.General && breakSetting.isOpen()));
-    private final BooleanSetting onAdd = add(new BooleanSetting("OnAdd", false, () -> page.getValue() == Page.General && breakSetting.isOpen()));
-    private final BooleanSetting resetCD = add(new BooleanSetting("ResetAttack", true, () -> page.getValue() == Page.General && breakSetting.isOpen()));
+    private final BooleanSetting place = add(new BooleanSetting("Place", true, () -> page.getValue() == Page.Place));
+    public final SliderSetting placeRange = add(new SliderSetting("PlaceRange", 5.0, 0.0, 6, 0.01, () -> page.getValue() == Page.Place && place.isOpen()).setSuffix("m"));
+    private final SliderSetting placeDelay = add(new SliderSetting("PlaceDelay", 300, 0, 1000, () -> page.getValue() == Page.Place && place.isOpen()).setSuffix("ms"));
+    private final EnumSetting<SwapMode> autoSwap = add(new EnumSetting<>("AutoSwap", SwapMode.None, () -> page.getValue() == Page.Place && place.isOpen()));
+    private final BooleanSetting afterBreak = add(new BooleanSetting("AfterBreak", true, () -> page.getValue() == Page.Place && place.isOpen()));
+    private final BooleanSetting forcePlace = add(new BooleanSetting("ForcePlace", false, () -> page.getValue() == Page.Place && place.isOpen()));
+    private final BooleanSetting breakSetting = add(new BooleanSetting("Break", true, () -> page.getValue() == Page.Break));
+    public final SliderSetting breakRange = add(new SliderSetting("BreakRange", 4.0, 0.0, 6, 0.01, () -> page.getValue() == Page.Break && breakSetting.isOpen()).setSuffix("m"));
+    private final SliderSetting breakDelay = add(new SliderSetting("BreakDelay", 300, 0, 1000, () -> page.getValue() == Page.Break && breakSetting.isOpen()).setSuffix("ms"));
+    private final SliderSetting minAge = add(new SliderSetting("MinAge", 0, 0, 20, () -> page.getValue() == Page.Break && breakSetting.isOpen()).setSuffix("tick"));
+    private final BooleanSetting breakRemove = add(new BooleanSetting("Remove", false, () -> page.getValue() == Page.Break && breakSetting.isOpen()));
+    private final BooleanSetting onAdd = add(new BooleanSetting("OnAdd", false, () -> page.getValue() == Page.Break && breakSetting.isOpen()));
+    private final BooleanSetting resetCD = add(new BooleanSetting("ResetAttack", true, () -> page.getValue() == Page.Break && breakSetting.isOpen()));
     private final EnumSetting<Timing> timing =
             add(new EnumSetting<>("Timing", Timing.All, () -> page.getValue() == Page.General));
     private final BooleanSetting interactOnRender = add(new BooleanSetting("InteractOnRender", false, () -> page.getValue() == Page.General));
@@ -878,7 +878,7 @@ public class AutoCrystal extends Module {
     }
 
     private enum Page {
-        General, Base, Misc, Rotation, Check, Calc, Render
+        General, Place, Break, Rotation, Check, Calc, Base, Misc, Render
     }
 
     private enum SwapMode {

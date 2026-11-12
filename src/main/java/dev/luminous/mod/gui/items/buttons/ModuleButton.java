@@ -30,35 +30,143 @@ public class ModuleButton
         this.initSettings();
     }
 
+    private static class Section {
+        final Enum<?> page;
+        final SectionButton header;
+        final List<Item> items = new ArrayList<>();
+
+        Section(Enum<?> page, boolean open) {
+            this.page = page;
+            this.header = new SectionButton(page.name(), open);
+        }
+    }
+
+    private final List<Section> sections = new ArrayList<>();
+    private final List<Item> commonItems = new ArrayList<>();
+    private EnumSetting<?> pageSetting;
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void setPage(EnumSetting<?> setting, Enum<?> value) {
+        ((EnumSetting) setting).setValue(value);
+    }
+
+    private static Item makeItem(Setting setting) {
+        if (setting instanceof BooleanSetting s) return new BooleanButton(s);
+        if (setting instanceof BindSetting s) return new BindButton(s);
+        if (setting instanceof StringSetting s) return new StringButton(s);
+        if (setting instanceof SliderSetting s) return new SliderButton(s);
+        if (setting instanceof EnumSetting<?> s) return new EnumButton(s);
+        if (setting instanceof ColorSetting s) return new PickerButton(s);
+        return null;
+    }
+
+    private boolean isKey(Setting setting) {
+        return setting == this.module.getBindSetting();
+    }
+
     public void initSettings() {
-        ArrayList<Item> newItems = new ArrayList<>();
+        this.sections.clear();
+        this.commonItems.clear();
+        this.pageSetting = null;
         for (Setting setting : this.module.getSettings()) {
-            if (setting instanceof BooleanSetting s) {
-                newItems.add(new BooleanButton(s));
-            }
-            if (setting instanceof BindSetting s) {
-                newItems.add(new BindButton(s));
-            }
-            if (setting instanceof StringSetting s) {
-                newItems.add(new StringButton(s));
-            }
-            if (setting instanceof SliderSetting s) {
-                newItems.add(new SliderButton(s));
-            }
-            if (setting instanceof EnumSetting<?> s) {
-                newItems.add(new EnumButton(s));
-            }
-            if (setting instanceof ColorSetting s) {
-                newItems.add(new PickerButton(s));
+            if (setting instanceof EnumSetting<?> e && e.getName().equals("Page")) {
+                this.pageSetting = e;
             }
         }
-        //newItems.add(new BindButton(this.module.getBind()));
+        Item keyItem = null;
+        if (this.pageSetting == null) {
+            for (Setting setting : this.module.getSettings()) {
+                Item item = makeItem(setting);
+                if (item == null) continue;
+                if (isKey(setting)) {
+                    keyItem = item;
+                } else {
+                    this.commonItems.add(item);
+                }
+            }
+        } else {
+            Enum<?>[] pages = this.pageSetting.getValue().getDeclaringClass().getEnumConstants();
+            Enum<?> original = this.pageSetting.getValue();
+            Section last = null;
+            try {
+                for (Setting setting : this.module.getSettings()) {
+                    if (setting == this.pageSetting) continue;
+                    Item item = makeItem(setting);
+                    if (item == null) continue;
+                    if (isKey(setting)) {
+                        keyItem = item;
+                        continue;
+                    }
+                    int visibleCount = 0;
+                    Enum<?> first = null;
+                    for (Enum<?> p : pages) {
+                        setPage(this.pageSetting, p);
+                        if (setting.isVisible()) {
+                            visibleCount++;
+                            if (first == null) first = p;
+                        }
+                    }
+                    if (visibleCount == pages.length) {
+                        this.commonItems.add(item);
+                        continue;
+                    }
+                    Section target = null;
+                    if (first != null) {
+                        for (Section sec : this.sections) {
+                            if (sec.page == first) target = sec;
+                        }
+                        if (target == null) {
+                            target = new Section(first, false);
+                            this.sections.add(target);
+                        }
+                    } else {
+                        target = last;
+                    }
+                    if (target == null) {
+                        this.commonItems.add(item);
+                    } else {
+                        target.items.add(item);
+                        last = target;
+                    }
+                }
+            } finally {
+                setPage(this.pageSetting, original);
+            }
+            this.sections.sort((a, b) -> Integer.compare(a.page.ordinal(), b.page.ordinal()));
+            if (!this.sections.isEmpty()) this.sections.get(0).header.open = true;
+        }
+        if (keyItem != null) this.commonItems.add(keyItem);
+
+        ArrayList<Item> newItems = new ArrayList<>();
+        for (Section sec : this.sections) {
+            newItems.add(sec.header);
+            newItems.addAll(sec.items);
+        }
+        newItems.addAll(this.commonItems);
         this.items = newItems;
     }
 
     @Override
     public void update() {
-        for (Item item : this.items) {
+        if (this.pageSetting == null) {
+            for (Item item : this.items) {
+                item.update();
+            }
+            return;
+        }
+        Enum<?> original = this.pageSetting.getValue();
+        try {
+            for (Section sec : this.sections) {
+                setPage(this.pageSetting, sec.page);
+                for (Item item : sec.items) {
+                    item.update();
+                    if (!sec.header.open) item.setHidden(true);
+                }
+            }
+        } finally {
+            setPage(this.pageSetting, original);
+        }
+        for (Item item : this.commonItems) {
             item.update();
         }
     }
@@ -66,7 +174,7 @@ public class ModuleButton
     @Override
     public void drawScreen(DrawContext context, int mouseX, int mouseY, float partialTicks) {
         Color color = ClickGui.getInstance().color.getValue();
-        int rgba = this.getState() ? (!this.isHovering(mouseX, mouseY) ? ColorUtil.injectAlpha(color, ClickGui.getInstance().alpha.getValueInt()).getRGB() : ColorUtil.injectAlpha(color, ClickGui.getInstance().hoverAlpha.getValueInt()).getRGB()) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor);
+        int rgba = this.getState() ? (!this.isHovering(mouseX, mouseY) ? WeatherTheme.ROW_ON_LEFT : WeatherTheme.ROW_ON_LEFT_HOVER) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor);
         if (this.getState()) {
             Render2DUtil.horizontalGradient(context.getMatrices(), this.x, this.y, this.x + (float) this.width, this.y + (float) this.height - 0.5f,
                     this.isHovering(mouseX, mouseY) ? WeatherTheme.ROW_ON_LEFT_HOVER : WeatherTheme.ROW_ON_LEFT, WeatherTheme.ROW_ON_RIGHT);

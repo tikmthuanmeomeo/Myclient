@@ -3,6 +3,7 @@ package dev.luminous.mod.gui.items.buttons;
 import dev.luminous.api.utils.render.ColorUtil;
 import dev.luminous.api.utils.render.Render2DUtil;
 import dev.luminous.mod.gui.ClickGuiScreen;
+import dev.luminous.mod.gui.WeatherTheme;
 import dev.luminous.mod.gui.items.Component;
 import dev.luminous.mod.gui.items.Item;
 import dev.luminous.mod.modules.impl.client.ClickGui;
@@ -26,7 +27,7 @@ public class Button
     @Override
     public void drawScreen(DrawContext context, int mouseX, int mouseY, float partialTicks) {
         Color color = ClickGui.getInstance().color.getValue();
-        Render2DUtil.rect(context.getMatrices(), this.x, this.y, this.x + (float) this.width, this.y + (float) this.height - 0.5f, this.getState() ? (!this.isHovering(mouseX, mouseY) ? ColorUtil.injectAlpha(color, ClickGui.getInstance().alpha.getValueInt()).getRGB() : ColorUtil.injectAlpha(color, ClickGui.getInstance().hoverAlpha.getValueInt()).getRGB()) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor));
+        Render2DUtil.rect(context.getMatrices(), this.x, this.y, this.x + (float) this.width, this.y + (float) this.height - 0.5f, this.getState() ? (!this.isHovering(mouseX, mouseY) ? WeatherTheme.ROW_ON_LEFT : WeatherTheme.ROW_ON_LEFT_HOVER) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor));
         drawString(this.getName(), this.x + 2.3f, this.y - 2.0f - (float) ClickGuiScreen.getInstance().getTextOffset(), this.getState() ? enableTextColor : defaultTextColor);
     }
 
