@@ -1,0 +1,99 @@
+package dev.luminous.mod.gui;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import dev.luminous.mod.modules.impl.misc.ShulkerViewer;
+import net.minecraft.block.Block;
+import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ingame.BookScreen;
+import net.minecraft.client.gui.screen.ingame.ShulkerBoxScreen;
+import net.minecraft.client.render.GameRenderer;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.BlockItem;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.screen.ShulkerBoxScreenHandler;
+import net.minecraft.util.DyeColor;
+import net.minecraft.util.Identifier;
+import org.lwjgl.glfw.GLFW;
+
+import java.awt.*;
+
+import static dev.luminous.api.utils.Wrapper.mc;
+
+public class PeekScreen extends ShulkerBoxScreen {
+    private final Identifier TEXTURE = Identifier.of("textures/gui/container/shulker_box.png");
+    private final ItemStack[] contents;
+    private final ItemStack storageBlock;
+
+    public PeekScreen(ItemStack storageBlock, ItemStack[] contents) {
+        super(new ShulkerBoxScreenHandler(0, mc.player.getInventory(), new SimpleInventory(contents)), mc.player.getInventory(), storageBlock.getName());
+        this.contents = contents;
+        this.storageBlock = storageBlock;
+    }
+
+    public static Color getShulkerColor(ItemStack shulkerItem) {
+        if (shulkerItem.getItem() instanceof BlockItem blockItem) {
+            Block block = blockItem.getBlock();
+            if (block instanceof ShulkerBoxBlock shulkerBlock) {
+                DyeColor dye = shulkerBlock.getColor();
+                if (dye == null) return Color.WHITE;
+                final int color = dye.getEntityColor();
+                return new Color(color);
+            }
+        }
+        return Color.WHITE;
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && focusedSlot != null && !focusedSlot.getStack().isEmpty() && mc.player.currentScreenHandler.getCursorStack().isEmpty()) {
+            ItemStack itemStack = focusedSlot.getStack();
+            if (ShulkerViewer.hasItems(itemStack) || itemStack.getItem() == Items.ENDER_CHEST) {
+                return ShulkerViewer.openContainer(focusedSlot.getStack(), contents, false);
+            } else if (itemStack.get(DataComponentTypes.WRITTEN_BOOK_CONTENT) != null || itemStack.get(DataComponentTypes.WRITABLE_BOOK_CONTENT) != null) {
+                close();
+                mc.setScreen(new BookScreen(BookScreen.Contents.create(itemStack)));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return false;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE || mc.options.inventoryKey.matchesKey(keyCode, scanCode)) {
+            close();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            close();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
+        Color color = getShulkerColor(storageBlock);
+
+        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
+        RenderSystem.setShaderColor(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, color.getAlpha() / 255f);
+        int i = (width - backgroundWidth) / 2;
+        int j = (height - backgroundHeight) / 2;
+        context.drawTexture(TEXTURE, i, j, 0, 0, backgroundWidth, backgroundHeight);
+        RenderSystem.setShaderColor(1, 1, 1, 1);
+    }
+}
