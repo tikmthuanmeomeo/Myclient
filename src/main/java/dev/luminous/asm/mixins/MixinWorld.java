@@ -21,6 +21,9 @@ public abstract class MixinWorld {
 
     @Inject(method = "getBlockState", at = @At("HEAD"), cancellable = true)
     public void blockStateHook(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
+        if (!CombatUtil.terrainIgnore && CombatUtil.modifyPos == null && (InteractTweaks.INSTANCE == null || !InteractTweaks.INSTANCE.isActive)) {
+            return;
+        }
         if (mc.world != null && mc.world.isInBuildLimit(pos)) {
             if (!ClientSetting.INSTANCE.mioCompatible.getValue()) {
                 boolean terrainIgnore = CombatUtil.terrainIgnore;

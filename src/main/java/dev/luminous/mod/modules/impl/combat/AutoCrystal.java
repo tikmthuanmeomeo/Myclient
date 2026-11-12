@@ -125,7 +125,7 @@ public class AutoCrystal extends Module {
     //Calc
     private final SliderSetting attackVecStep =
             add(new SliderSetting("AttackVecStep", 0.1, 0.01, 1, 0.01, () -> page.getValue() == Page.Calc));
-    private final BooleanSetting thread = add(new BooleanSetting("Thread", false, () -> page.getValue() == Page.Calc));
+    private final BooleanSetting thread = add(new BooleanSetting("Thread", true, () -> page.getValue() == Page.Calc));
     private final BooleanSetting doCrystal = add(new BooleanSetting("InteractInCalc", false, () -> page.getValue() == Page.Calc));
     private final SliderSetting selfPredict = add(new SliderSetting("SelfPredict", 0, 0, 20, () -> page.getValue() == Page.Calc).setSuffix("ticks"));
     private final SliderSetting predictTicks = add(new SliderSetting("Predict", 4, 0, 20, () -> page.getValue() == Page.Calc).setSuffix("ticks"));

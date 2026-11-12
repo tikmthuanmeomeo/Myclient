@@ -43,7 +43,7 @@ public abstract class Module extends Mod {
     }
 
     private boolean hideInModuleList() {
-        return this instanceof ColorsModule || this instanceof BaritoneModule || this instanceof AntiCheat || this instanceof ClientSetting || this instanceof HUD;
+        return this instanceof ColorsModule || this instanceof BaritoneModule || this instanceof AntiCheat || this instanceof ClientSetting;
     }
 
     public void setChinese(String chinese) {

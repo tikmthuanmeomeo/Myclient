@@ -5,7 +5,6 @@ import com.google.common.base.Splitter;
 import dev.luminous.Alien;
 import dev.luminous.core.Manager;
 import dev.luminous.mod.modules.Module;
-import dev.luminous.mod.modules.impl.client.HUD;
 import dev.luminous.mod.modules.settings.Setting;
 import dev.luminous.mod.modules.settings.impl.*;
 import net.minecraft.client.MinecraftClient;
@@ -60,7 +59,7 @@ public class ConfigManager extends Manager {
                     }
                 }
             }
-            module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", module instanceof HUD));
+            module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", false));
         }
 
 
@@ -215,7 +214,7 @@ public class ConfigManager extends Manager {
                                         }
                                     }
                                 }
-                                module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", module instanceof HUD));
+                                module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", false));
                             }
                             if (hwid.isEmpty()) {
                                 try {

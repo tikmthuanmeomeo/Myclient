@@ -38,7 +38,7 @@ public final class WeatherTheme {
         PANELS.put("Combat", new String[]{"AntiRegear", "AutoCrystal",
                 "PistonCrystal", "TotemPops", "AutoRegear"});
         PANELS.put("Movement", new String[]{"ElytraFly", "FireworkSwap", "Velocity", "Sprint"});
-        PANELS.put("Render", new String[]{"NameTags", "NoRender", "HUD", "FullBright", "Skybox"});
+        PANELS.put("Render", new String[]{"NameTags", "NoRender", "FullBright", "Skybox"});
         PANELS.put("Player", new String[]{"AutoArmor", "FakePlayer", "HotbarSaver", "AutoTool"});
         PANELS.put("Weather", new String[]{"ClickGui", "ClientSetting"});
     }

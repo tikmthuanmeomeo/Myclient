@@ -51,7 +51,6 @@ public class CommandManager implements Wrapper {
         registerCommand(new TCommand());
         registerCommand(new ToggleCommand());
         registerCommand(new TradeCommand());
-        registerCommand(new WatermarkCommand());
         registerCommand(new PeekCommand());
         registerCommand(new GcCommand());
 
@@ -201,7 +200,6 @@ public class CommandManager implements Wrapper {
         registerCommand(new TCommand());
         registerCommand(new ToggleCommand());
         registerCommand(new TradeCommand());
-        registerCommand(new WatermarkCommand());
         registerCommand(new PeekCommand());
         registerCommand(new GcCommand());
                             if (hwid.isEmpty()) {

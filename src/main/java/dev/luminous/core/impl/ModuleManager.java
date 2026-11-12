@@ -142,7 +142,6 @@ public class ModuleManager implements Wrapper {
         addModule(new Tips());
         addModule(new ClientSetting());
         addModule(new TextRadar());
-        addModule(new HUD());
         addModule(new NoResourcePack());
         addModule(new RocketExtend());
         addModule(new HoleFiller());
@@ -403,7 +402,6 @@ public class ModuleManager implements Wrapper {
                             addModule(new Tips());
                             addModule(new ClientSetting());
                             addModule(new TextRadar());
-                            addModule(new HUD());
                             addModule(new NoResourcePack());
                             addModule(new RocketExtend());
                             addModule(new HoleFiller());

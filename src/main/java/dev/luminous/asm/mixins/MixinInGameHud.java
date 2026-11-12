@@ -7,7 +7,6 @@ import dev.luminous.api.utils.render.ColorUtil;
 import dev.luminous.api.utils.render.TextUtil;
 import dev.luminous.core.impl.FontManager;
 import dev.luminous.mod.modules.impl.client.ClientSetting;
-import dev.luminous.mod.modules.impl.client.HUD;
 import dev.luminous.mod.modules.impl.render.Crosshair;
 import dev.luminous.mod.modules.impl.render.NoRender;
 import net.minecraft.client.MinecraftClient;
@@ -52,79 +51,6 @@ public abstract class MixinInGameHud {
     @Unique
     final
     Color maxColor = new Color(0, 227, 0);
-
-    @Inject(method = "renderMainHud", at = @At("TAIL"))
-    private void onRenderMainHud(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        if (HUD.INSTANCE.isOn() && HUD.INSTANCE.armor.getValue()) {
-            PlayerEntity player = this.getCameraPlayer();
-            if (player != null) {
-                int x = context.getScaledWindowWidth() / 2 + 91;
-                int y = context.getScaledWindowHeight() - 28 - HUD.INSTANCE.armorOffset.getValueInt();
-
-                if (this.client.interactionManager.hasStatusBars()) {
-                    y -= 16;
-                }
-                int t = this.getHeartCount(getRiddenEntity());
-                if (t == 0) {
-                    y -= 10;
-                }
-
-                int maxAir = player.getMaxAir();
-                int air = Math.min(player.getAir(), maxAir);
-                if (player.isSubmergedIn(FluidTags.WATER) || air < maxAir) {
-                    int w = this.getHeartRows(t) - 1;
-                    y += w * 10;
-                }
-
-                for (ItemStack armor : client.player.getInventory().armor) {
-                    x -= 20;
-                    if (armor.isEmpty()) continue;
-                    context.getMatrices().push();
-                    int damage = EntityUtil.getDamagePercent(armor);
-                    context.drawItem(armor, x, y);
-                    context.drawItemInSlot(client.textRenderer, armor, x, y);
-
-                    if (HUD.INSTANCE.durability.getValue()) {
-                        if (HUD.INSTANCE.font.getValue()) {
-                            FontManager.small.drawString(context.getMatrices(), damage + "%",
-                                    (x + 1),
-                                    y - FontManager.small.getFontHeight() / 2,
-                                    ColorUtil.fadeColor(minColor, maxColor, damage / 100f).getRGB(), HUD.INSTANCE.shadow.getValue());
-                        } else {
-                            TextUtil.drawStringScale(context, damage + "%",
-                                    (x + 2),
-                                    (y - client.textRenderer.fontHeight / 4f),
-                                    ColorUtil.fadeColor(minColor, maxColor, damage / 100f).getRGB(),
-                                    0.5F,
-                                    HUD.INSTANCE.shadow.getValue()
-                            );
-                        }
-                    }
-                    context.getMatrices().pop();
-                }
-            }
-        }
-    }
-
-    @Shadow
-    private int getHeartRows(int t) {
-        return 0;
-    }
-
-    @Shadow
-    private int getHeartCount(LivingEntity livingEntity) {
-        return 0;
-    }
-
-    @Shadow
-    private PlayerEntity getCameraPlayer() {
-        return null;
-    }
-
-    @Shadow
-    private LivingEntity getRiddenEntity() {
-        return null;
-    }
 
     @Shadow
     public abstract void render(DrawContext context, RenderTickCounter tickCounter);
