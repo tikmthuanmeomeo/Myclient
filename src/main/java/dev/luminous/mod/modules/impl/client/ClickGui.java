@@ -7,6 +7,7 @@ import dev.luminous.api.events.impl.UpdateEvent;
 import dev.luminous.api.utils.math.Animation;
 import dev.luminous.api.utils.math.Easing;
 import dev.luminous.mod.gui.ClickGuiScreen;
+import dev.luminous.mod.gui.WeatherTheme;
 import dev.luminous.mod.gui.items.Component;
 import dev.luminous.mod.gui.items.Item;
 import dev.luminous.mod.gui.items.buttons.Button;
@@ -122,10 +123,11 @@ public class ClickGui
     }
 
     public void updateColor() {
-        Button.hoverColor = hoverColor.getValue().getRGB();
-        Button.defaultTextColor = defaultTextColor.getValue().getRGB();
-        Button.defaultColor = defaultColor.getValue().getRGB();
-        Button.enableTextColor = enableTextColor.getValue().getRGB();
+        // fixed Weather theme colours: old saved configs (red) must not override them
+        Button.hoverColor = 0x66306FB0;
+        Button.defaultTextColor = WeatherTheme.TEXT_OFF;
+        Button.defaultColor = 0x22305A90;
+        Button.enableTextColor = WeatherTheme.TEXT_ON;
     }
 
     public class FadeOut {

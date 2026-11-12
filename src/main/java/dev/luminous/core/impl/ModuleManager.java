@@ -59,6 +59,7 @@ public class ModuleManager implements Wrapper {
         addModule(new FullBright());
         addModule(new Skybox());
         addModule(new HotbarSaver());
+        addModule(new InvSaver());
         addModule(new AntiHunger());
         addModule(new AntiVoid());
         addModule(new AutoWalk());

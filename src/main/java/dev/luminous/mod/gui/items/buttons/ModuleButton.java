@@ -139,6 +139,9 @@ public class ModuleButton
         if (this.module instanceof dev.luminous.mod.modules.impl.player.HotbarSaver saver) {
             this.commonItems.add(new HotbarSlotsButton(saver));
         }
+        if (this.module instanceof dev.luminous.mod.modules.impl.player.InvSaver invSaver) {
+            this.commonItems.add(new InvSlotsButton(invSaver));
+        }
         if (keyItem != null) this.commonItems.add(keyItem);
 
         ArrayList<Item> newItems = new ArrayList<>();
@@ -188,7 +191,7 @@ public class ModuleButton
         }
         drawString(module.getDisplayName(), this.x + 6f, this.y - 2.0f - (float) ClickGuiScreen.getInstance().getTextOffset(), this.getState() ? enableTextColor : defaultTextColor);
         if (ClickGui.getInstance().gear.booleanValue) {
-            drawString("...", this.x + width - 13f, this.y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), ClickGui.getInstance().gear.getValue().getRGB());
+            drawString("...", this.x + width - 13f, this.y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), WeatherTheme.DOTS);
         }
         if (this.subOpen || itemHeight > 0) {
             if (ClickGui.getInstance().line.getValue()) {

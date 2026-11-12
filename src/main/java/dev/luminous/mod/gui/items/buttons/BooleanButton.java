@@ -25,7 +25,7 @@ public class BooleanButton
         Render2DUtil.rect(context.getMatrices(), this.x, this.y, this.x + (float) this.width + 7.0f, this.y + (float) this.height - 0.5f, this.getState() ? (!this.isHovering(mouseX, mouseY) ? WeatherTheme.ROW_ON_LEFT : WeatherTheme.ROW_ON_LEFT_HOVER) : (!this.isHovering(mouseX, mouseY) ? defaultColor : hoverColor));
         drawString(this.getName(), this.x + 2.3f, this.y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), this.getState() ? enableTextColor : defaultTextColor);
         if (setting.hasParent()) {
-            drawString(setting.isOpen() ? "-" : "+", this.x + width - 1f, this.y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), ClickGui.getInstance().gear.getValue());
+            drawString(setting.isOpen() ? "-" : "+", this.x + width - 1f, this.y - 1.7f - (float) ClickGuiScreen.getInstance().getTextOffset(), WeatherTheme.DOTS);
         }
     }
 
