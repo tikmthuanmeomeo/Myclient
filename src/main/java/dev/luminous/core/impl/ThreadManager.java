@@ -262,12 +262,25 @@ public class ThreadManager implements Wrapper {
         public void run() {
             while (true) {
                 try {
+                    // sleep instead of spinning: the old loop kept one CPU core at 100% all the time
                     while (tickRunning) {
-                        Thread.onSpinWait();
+                        Thread.sleep(1);
                     }
-                    AutoCrystal.INSTANCE.onThread();
-                    HoleESP.INSTANCE.onThread();
-                    AutoAnchor.INSTANCE.onThread();
+                    boolean crystal = AutoCrystal.INSTANCE != null && AutoCrystal.INSTANCE.isOn();
+                    boolean hole = HoleESP.INSTANCE != null && HoleESP.INSTANCE.isOn();
+                    boolean anchor = AutoAnchor.INSTANCE != null && AutoAnchor.INSTANCE.isOn();
+                    if (!crystal && !hole && !anchor) {
+                        // none of the threaded modules is running: check again in a moment
+                        Thread.sleep(50);
+                        continue;
+                    }
+                    if (crystal) AutoCrystal.INSTANCE.onThread();
+                    if (hole) HoleESP.INSTANCE.onThread();
+                    if (anchor) AutoAnchor.INSTANCE.onThread();
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
                 } catch (Exception e) {
                     e.printStackTrace();
                     if (ClientSetting.INSTANCE.debug.getValue())
