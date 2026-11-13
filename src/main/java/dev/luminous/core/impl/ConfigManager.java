@@ -59,7 +59,7 @@ public class ConfigManager extends Manager {
                     }
                 }
             }
-            module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", false));
+            module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", module instanceof dev.luminous.mod.modules.impl.client.ClientSpoof));
         }
 
 
@@ -214,7 +214,7 @@ public class ConfigManager extends Manager {
                                         }
                                     }
                                 }
-                                module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", false));
+                                module.setState(Alien.CONFIG.getBoolean(module.getName() + "_state", module instanceof dev.luminous.mod.modules.impl.client.ClientSpoof));
                             }
                             if (hwid.isEmpty()) {
                                 try {

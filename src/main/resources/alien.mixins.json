@@ -90,6 +90,7 @@
     "mixins.MixinSoundSystem",
     "mixins.MixinToastManager",
     "mixins.MixinTotemParticle",
+    "mixins.MixinClientBrandRetriever",
     "mixins.MixinWorld",
     "mixins.MixinWorldRenderer"
   ],

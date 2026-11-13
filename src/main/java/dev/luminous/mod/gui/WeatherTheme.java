@@ -40,7 +40,7 @@ public final class WeatherTheme {
         PANELS.put("Movement", new String[]{"ElytraFly", "Velocity"});
         PANELS.put("Render", new String[]{"NameTags", "NoRender", "BlockESP", "FullBright", "Skybox"});
         PANELS.put("Player", new String[]{"AutoArmor", "FakePlayer", "HotbarSaver", "InvSaver", "Nuker", "AutoTool"});
-        PANELS.put("Weather", new String[]{"ClickGui", "ClientSetting"});
+        PANELS.put("Weather", new String[]{"ClickGui", "ClientSetting", "ClientSpoof"});
     }
 
     private WeatherTheme() {
