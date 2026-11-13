@@ -37,6 +37,7 @@ public class AutoEZ extends Module {
 
     private final BooleanSetting totemChat = add(new BooleanSetting("TotemChat", true, () -> page.getValue() == Page.Totem));
     private final StringSetting totemMsg = add(new StringSetting("TotemMsg", "%player% popped a totem", () -> page.getValue() == Page.Totem));
+    private final BooleanSetting showCount = add(new BooleanSetting("ShowCount", true, () -> page.getValue() == Page.Totem));
 
     private final BooleanSetting deathChat = add(new BooleanSetting("DeathChat", true, () -> page.getValue() == Page.Death));
     private final StringSetting deathMsg = add(new StringSetting("DeathMsg", "EZ %player%", () -> page.getValue() == Page.Death));
@@ -46,6 +47,8 @@ public class AutoEZ extends Module {
 
     private final Map<UUID, Long> lastHit = new HashMap<>();
     private final Map<UUID, Long> popCredit = new HashMap<>();
+    private final Map<UUID, Integer> popCount = new HashMap<>();
+    private int totalPops = 0;
     private long actionTime = 0L;
     private Vec3d actionPos = null;
     private long lastMessage = 0L;
@@ -59,6 +62,8 @@ public class AutoEZ extends Module {
     public void onDisable() {
         lastHit.clear();
         popCredit.clear();
+        popCount.clear();
+        totalPops = 0;
         actionPos = null;
     }
 
@@ -100,13 +105,24 @@ public class AutoEZ extends Module {
         return range.getValue() <= 0 || mc.player.distanceTo(p) <= range.getValue();
     }
 
-    private void say(String template, PlayerEntity p) {
+    /**
+     * Placeholders: %player% = name, %pops% = totems you popped on that player, %total% = totems you popped on everyone.
+     * When appendCount is set and the message has no count placeholder, " (pops)" is added at the end.
+     */
+    private void say(String template, PlayerEntity p, int pops, boolean appendCount) {
         if (template == null || template.isBlank()) return;
         long now = System.currentTimeMillis();
         if (now - lastMessage < delay.getValue()) return;
         lastMessage = now;
         String name = p.getName().getString();
-        mc.getNetworkHandler().sendChatMessage(template.replace("%player%", name).replace("{player}", name));
+        boolean hasCount = template.contains("%pops%") || template.contains("{pops}")
+                || template.contains("%total%") || template.contains("{total}");
+        String msg = template;
+        if (appendCount && !hasCount) msg = msg + " (" + pops + ")";
+        msg = msg.replace("%player%", name).replace("{player}", name)
+                .replace("%pops%", String.valueOf(pops)).replace("{pops}", String.valueOf(pops))
+                .replace("%total%", String.valueOf(totalPops)).replace("{total}", String.valueOf(totalPops));
+        mc.getNetworkHandler().sendChatMessage(msg);
     }
 
     @EventListener
@@ -115,7 +131,9 @@ public class AutoEZ extends Module {
         PlayerEntity p = event.getPlayer();
         if (!valid(p) || !causedByMe(p)) return;
         popCredit.put(p.getUuid(), System.currentTimeMillis());
-        if (totemChat.getValue()) say(totemMsg.getValue(), p);
+        int pops = popCount.merge(p.getUuid(), 1, Integer::sum);
+        totalPops++;
+        if (totemChat.getValue()) say(totemMsg.getValue(), p, pops, showCount.getValue());
     }
 
     @EventListener
@@ -127,9 +145,11 @@ public class AutoEZ extends Module {
         Long hit = lastHit.get(p.getUuid());
         Long pop = popCredit.get(p.getUuid());
         boolean credited = (hit != null && now - hit < 8000) || (pop != null && now - pop < 20000) || causedByMe(p);
+        int pops = popCount.getOrDefault(p.getUuid(), 0);
         lastHit.remove(p.getUuid());
         popCredit.remove(p.getUuid());
-        if (credited && deathChat.getValue()) say(deathMsg.getValue(), p);
+        popCount.remove(p.getUuid());
+        if (credited && deathChat.getValue()) say(deathMsg.getValue(), p, pops, false);
     }
 
     private enum Page {
