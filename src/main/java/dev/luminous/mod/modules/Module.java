@@ -223,6 +223,11 @@ public abstract class Module extends Mod {
         return setting;
     }
 
+    public BlockListSetting add(BlockListSetting setting) {
+        addSetting(setting);
+        return setting;
+    }
+
     public ColorSetting add(ColorSetting setting) {
         addSetting(setting);
         return setting;
