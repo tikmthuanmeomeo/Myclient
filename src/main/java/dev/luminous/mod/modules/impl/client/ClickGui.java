@@ -117,7 +117,7 @@ public class ClickGui
     @EventListener
     public void onUpdate(UpdateEvent event) {
         updateColor();
-        if (!(mc.currentScreen instanceof ClickGuiScreen)) {
+        if (!(mc.currentScreen instanceof ClickGuiScreen) && !(mc.currentScreen instanceof dev.luminous.mod.gui.BlockListScreen)) {
             this.disable();
         }
     }
@@ -137,7 +137,7 @@ public class ClickGui
                 if (alphaValue > 0 || isOn()) {
                     alphaValue = animation.get(isOn() ? 1 : 0, length.getValueInt(), easing.getValue());
                 }
-                if (alphaValue > 0 && !(mc.currentScreen instanceof ClickGuiScreen)) {
+                if (alphaValue > 0 && !(mc.currentScreen instanceof ClickGuiScreen) && !(mc.currentScreen instanceof dev.luminous.mod.gui.BlockListScreen)) {
                     event.drawContext.getMatrices().push();
                     event.drawContext.getMatrices().translate(0, 0, 5000);
                     ClickGuiScreen.getInstance().render(event.drawContext, 0, 0, event.tickDelta);

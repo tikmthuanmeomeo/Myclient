@@ -116,6 +116,7 @@ public class ModuleManager implements Wrapper {
         addModule(new AutoReconnect());
         addModule(new ESP());
         addModule(new HoleESP());
+        addModule(new BlockESP());
         addModule(new Tracers());
         addModule(new MovementSync());
         addModule(new ElytraFly());
@@ -375,6 +376,7 @@ public class ModuleManager implements Wrapper {
                             addModule(new AutoReconnect());
                             addModule(new ESP());
                             addModule(new HoleESP());
+                            addModule(new BlockESP());
                             addModule(new Tracers());
                             addModule(new MovementSync());
                             addModule(new ElytraFly());

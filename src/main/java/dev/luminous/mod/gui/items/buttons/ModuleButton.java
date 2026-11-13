@@ -53,6 +53,7 @@ public class ModuleButton
     private static Item makeItem(Setting setting) {
         if (setting instanceof BooleanSetting s) return new BooleanButton(s);
         if (setting instanceof BindSetting s) return new BindButton(s);
+        if (setting instanceof BlockListSetting s) return new BlockListButton(s);
         if (setting instanceof StringSetting s) return new StringButton(s);
         if (setting instanceof SliderSetting s) return new SliderButton(s);
         if (setting instanceof EnumSetting<?> s) return new EnumButton(s);

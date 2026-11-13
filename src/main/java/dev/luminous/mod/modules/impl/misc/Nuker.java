@@ -7,6 +7,7 @@ import dev.luminous.api.utils.world.BlockUtil;
 import dev.luminous.mod.modules.Module;
 import dev.luminous.mod.modules.impl.player.PacketMine;
 import dev.luminous.mod.modules.impl.render.PlaceRender;
+import dev.luminous.mod.modules.settings.impl.BlockListSetting;
 import dev.luminous.mod.modules.settings.impl.BooleanSetting;
 import dev.luminous.mod.modules.settings.impl.EnumSetting;
 import dev.luminous.mod.modules.settings.impl.SliderSetting;
@@ -34,6 +35,8 @@ public class Nuker extends Module {
     private final SliderSetting range = add(new SliderSetting("Range", 4, 1, 6, 0.1));
     private final SliderSetting delay = add(new SliderSetting("Delay", 0, 0, 20, 1).setSuffix("t"));
     private final SliderSetting blocksPerTick = add(new SliderSetting("BlocksPerTick", 1, 1, 10, 1));
+    private final EnumSetting<ListMode> listMode = add(new EnumSetting<>("ListMode", ListMode.Blacklist));
+    private final BlockListSetting blocks = add(new BlockListSetting("Blocks"));
     private final BooleanSetting packetMine = add(new BooleanSetting("PacketMine", true));
     private final BooleanSetting rotate = add(new BooleanSetting("Rotate", false));
     private final BooleanSetting swing = add(new BooleanSetting("Swing", true));
@@ -127,6 +130,8 @@ public class Nuker extends Module {
                     }
                     BlockState state = mc.world.getBlockState(pos);
                     if (state.isAir() || state.getBlock() instanceof FluidBlock) continue;
+                    boolean listed = blocks.contains(state.getBlock());
+                    if (listMode.getValue() == ListMode.Whitelist ? !listed : listed) continue;
                     float hardness = state.getHardness(mc.world, pos);
                     if (!creative && (hardness < 0 || PacketMine.unbreakable(pos))) continue;
                     if (mode.getValue() == Mode.Flatten && pos.getY() < feetY) continue;
@@ -141,6 +146,10 @@ public class Nuker extends Module {
     }
 
     private record Target(BlockPos pos, Direction side, boolean instant) {
+    }
+
+    private enum ListMode {
+        Blacklist, Whitelist
     }
 
     private enum Mode {
