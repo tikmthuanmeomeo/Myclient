@@ -31,6 +31,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class AutoRegear extends Module {
@@ -255,7 +256,13 @@ public class AutoRegear extends Module {
         }
         boolean take = false;
         if (mc.player.currentScreenHandler instanceof ShulkerBoxScreenHandler shulker) {
-            for (Slot slot : shulker.slots) {
+            // take in priority order: totem, obsidian, crystal, bed, then everything else
+            List<Slot> ordered = new ArrayList<>();
+            for (Slot s : shulker.slots) {
+                if (s.id < 27 && !s.getStack().isEmpty()) ordered.add(s);
+            }
+            ordered.sort(Comparator.comparingInt(s -> priority(s.getStack())));
+            for (Slot slot : ordered) {
                 if (slot.id < 27 && !slot.getStack().isEmpty()) {
                     Type type = needSteal(slot.getStack());
                     if (!smart.getValue() || type == Type.QuickMove || type == Type.Stack && forceMove.getValue()) {
@@ -291,6 +298,16 @@ public class AutoRegear extends Module {
             }
             if (autoDisable.getValue()) this.timeoutToDisable();
         }
+    }
+
+    /** Lower number = taken first. */
+    private int priority(ItemStack stack) {
+        Item item = stack.getItem();
+        if (item == Items.TOTEM_OF_UNDYING) return 0;
+        if (item == Blocks.OBSIDIAN.asItem()) return 1;
+        if (item == Items.END_CRYSTAL) return 2;
+        if (item instanceof BlockItem blockItem && blockItem.getBlock() instanceof BedBlock) return 3;
+        return 4;
     }
 
     private void timeoutToDisable() {
