@@ -16,7 +16,7 @@ public class ClientSpoof extends Module {
     public static ClientSpoof INSTANCE;
 
     private final StringSetting brand = add(new StringSetting("Brand", "vanilla"));
-    private final BooleanSetting hideChannels = add(new BooleanSetting("HideChannels", true));
+    private final BooleanSetting hideChannels = add(new BooleanSetting("BlockChannels", false));
 
     public ClientSpoof() {
         super("ClientSpoof", "Reports a vanilla client brand to servers", Category.Client);

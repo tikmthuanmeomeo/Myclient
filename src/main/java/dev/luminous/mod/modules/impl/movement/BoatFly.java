@@ -75,7 +75,8 @@ public class BoatFly extends Module {
         double y;
         if (mc.options.jumpKey.isPressed()) {
             y = verticalSpeed.getValue();
-        } else if (mc.options.sprintKey.isPressed()) {
+        } else if (mc.options.sprintKey.isPressed()
+                || (mc.options.sneakKey.isPressed() && BoatNoClip.INSTANCE != null && BoatNoClip.INSTANCE.isOn())) {
             y = -verticalSpeed.getValue();
         } else {
             y = -glide.getValue();
