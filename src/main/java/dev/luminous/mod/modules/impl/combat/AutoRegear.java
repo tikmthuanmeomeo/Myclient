@@ -73,6 +73,8 @@ public class AutoRegear extends Module {
     private BlockPos openPos;
     private boolean opend = false;
     private boolean on = false;
+    private int openTicks = 0;
+    private boolean reported = false;
 
     public AutoRegear() {
         super("AutoRegear", Category.Combat);
@@ -96,6 +98,10 @@ public class AutoRegear extends Module {
 
     @Override
     public void onEnable() {
+        // forget shulkers opened last time, otherwise a box that is still placed is skipped and nothing is taken
+        openList.clear();
+        openTicks = 0;
+        reported = false;
         opend = false;
         openPos = null;
         timeoutTimer.reset();
@@ -182,6 +188,7 @@ public class AutoRegear extends Module {
         if (smart.getValue()) update();
         if (placeKey.isPressed() && mc.currentScreen == null) {
             if (!on) {
+                openList.clear();
                 opend = false;
                 openPos = null;
                 timeoutTimer.reset();
@@ -194,6 +201,8 @@ public class AutoRegear extends Module {
         }
         openList.removeIf(pos -> !(mc.world.getBlockState(pos).getBlock() instanceof ShulkerBoxBlock));
         if (!(mc.currentScreen instanceof ShulkerBoxScreen)) {
+            openTicks = 0;
+            reported = false;
             if (opend) {
                 opend = false;
                 if (autoDisable.getValue()) timeoutToDisable();
@@ -236,6 +245,7 @@ public class AutoRegear extends Module {
             return;
         }
         opend = true;
+        openTicks++;
         if (openPos != null) {
             openList.add(openPos);
         }
@@ -273,7 +283,14 @@ public class AutoRegear extends Module {
                 }
             }
         }
-        if (autoDisable.getValue() && !take) this.timeoutToDisable();
+        // wait a few ticks after opening: the contents of the box arrive from the server a moment later
+        if (!take && openTicks > 3) {
+            if (!reported) {
+                reported = true;
+                sendMessage("§eAutoRegear: nothing (more) to take from this shulker box.");
+            }
+            if (autoDisable.getValue()) this.timeoutToDisable();
+        }
     }
 
     private void timeoutToDisable() {
