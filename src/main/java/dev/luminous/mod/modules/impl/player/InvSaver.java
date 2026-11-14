@@ -6,6 +6,7 @@ import dev.luminous.api.utils.math.Timer;
 import dev.luminous.mod.gui.ClickGuiScreen;
 import dev.luminous.mod.modules.Module;
 import dev.luminous.mod.modules.settings.impl.BooleanSetting;
+import dev.luminous.mod.modules.settings.impl.SliderSetting;
 import dev.luminous.mod.modules.settings.impl.StringSetting;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.item.Item;
@@ -26,6 +27,9 @@ public class InvSaver extends Module {
     private final BooleanSetting save = add(new BooleanSetting("Save", false).injectTask(this::saveTask));
     private final BooleanSetting clear = add(new BooleanSetting("Clear", false).injectTask(this::clearTask));
     private final BooleanSetting autoDisable = add(new BooleanSetting("AutoDisable", true));
+    /** After sorting, throw out every stack in the main inventory that is not what was saved for that slot. */
+    private final BooleanSetting dropExtras = add(new BooleanSetting("DropExtras", true));
+    private final SliderSetting dropPerTick = add(new SliderSetting("DropPerTick", 27, 1, 27, dropExtras::getValue));
     /** Comma separated item ids for inventory slots 9..35. Hidden from the GUI, stored in the config. */
     private final StringSetting saved = add(new StringSetting("Saved", "", () -> false));
 
@@ -122,8 +126,29 @@ public class InvSaver extends Module {
             timer.reset();
             return;
         }
-        // nothing left that can be fixed
+        // nothing left to sort: throw away whatever is not part of the saved inventory
+        if (dropExtras.getValue() && dropExtras() > 0) {
+            timer.reset();
+            return;
+        }
         if (autoDisable.getValue()) disable();
+    }
+
+    /** Drops whole stacks (main inventory only) that do not match the saved item of their slot. */
+    private int dropExtras() {
+        int id = mc.player.playerScreenHandler.syncId;
+        int limit = dropPerTick.getValueInt();
+        int count = 0;
+        for (int i = 0; i < SLOTS && count < limit; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(9 + i);
+            if (stack.isEmpty()) continue;
+            if (stack.getItem() == layout[i]) continue;
+            // THROW with button 1 drops the whole stack
+            mc.interactionManager.clickSlot(id, 9 + i, 1, SlotActionType.THROW, mc.player);
+            count++;
+        }
+        if (count > 0) sendMessage("§eDropped " + count + " extra stack(s)");
+        return count;
     }
 
     /** Main inventory slot (9..35) holding the wanted item that is not already in its own saved slot. */

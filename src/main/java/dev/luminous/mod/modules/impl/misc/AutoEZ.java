@@ -107,7 +107,8 @@ public class AutoEZ extends Module {
 
     /**
      * Placeholders: %player% = name, %pops% = totems you popped on that player, %total% = totems you popped on everyone.
-     * When appendCount is set and the message has no count placeholder, " (pops)" is added at the end.
+     * Final text is only your message, the player's name and (for totems) the pop count:
+     * a missing name is appended after the message, then a missing count, separated by spaces.
      */
     private void say(String template, PlayerEntity p, int pops, boolean appendCount) {
         if (template == null || template.isBlank()) return;
@@ -115,10 +116,12 @@ public class AutoEZ extends Module {
         if (now - lastMessage < delay.getValue()) return;
         lastMessage = now;
         String name = p.getName().getString();
+        boolean hasName = template.contains("%player%") || template.contains("{player}");
         boolean hasCount = template.contains("%pops%") || template.contains("{pops}")
                 || template.contains("%total%") || template.contains("{total}");
         String msg = template;
-        if (appendCount && !hasCount) msg = msg + " (" + pops + ")";
+        if (!hasName) msg = msg + " " + name;
+        if (appendCount && !hasCount) msg = msg + " " + pops;
         msg = msg.replace("%player%", name).replace("{player}", name)
                 .replace("%pops%", String.valueOf(pops)).replace("{pops}", String.valueOf(pops))
                 .replace("%total%", String.valueOf(totalPops)).replace("{total}", String.valueOf(totalPops));
