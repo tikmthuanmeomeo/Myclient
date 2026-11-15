@@ -9,6 +9,10 @@ public class BoolSetting extends Setting<Boolean> {
         return value;
     }
 
+    public void set(boolean v) {
+        value = v;
+    }
+
     public void toggle() {
         value = !value;
     }

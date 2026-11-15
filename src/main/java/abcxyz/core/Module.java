@@ -62,6 +62,10 @@ public abstract class Module {
     public void onTick() {
     }
 
+    /** Called every rendered frame (much more often than onTick). */
+    public void onFrame() {
+    }
+
     public void onRender3D(WorldRenderContext context) {
     }
 

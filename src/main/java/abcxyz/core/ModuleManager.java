@@ -6,9 +6,8 @@ import abcxyz.module.combat.Hitbox;
 import abcxyz.module.combat.TriggerBot;
 import abcxyz.module.combat.Velocity;
 import abcxyz.module.misc.AutoRespawn;
-import abcxyz.module.movement.NoFall;
+import abcxyz.module.misc.EasyPlace;
 import abcxyz.module.movement.Sprint;
-import abcxyz.module.movement.Step;
 import abcxyz.module.render.ESP;
 import abcxyz.module.render.FullBright;
 import abcxyz.module.render.HealthIndicator;
@@ -37,14 +36,13 @@ public class ModuleManager {
         modules.add(new Velocity());
         modules.add(new AutoTotem());
         modules.add(new Sprint());
-        modules.add(new NoFall());
-        modules.add(new Step());
         modules.add(new HealthIndicator());
         modules.add(new ESP());
         modules.add(new Tracers());
         modules.add(new FullBright());
         modules.add(new ModuleList());
         modules.add(new AutoRespawn());
+        modules.add(new EasyPlace());
         boolean hadConfig = Config.load(this);
         if (!hadConfig) {
             get(ModuleList.class).setEnabled(true, false);
@@ -91,6 +89,18 @@ public class ModuleManager {
             if (!m.isEnabled()) continue;
             try {
                 m.onTick();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
+        }
+    }
+
+    public void frame(WorldRenderContext context) {
+        if (mc.player == null || mc.world == null) return;
+        for (Module m : modules) {
+            if (!m.isEnabled()) continue;
+            try {
+                m.onFrame();
             } catch (Throwable t) {
                 t.printStackTrace();
             }
