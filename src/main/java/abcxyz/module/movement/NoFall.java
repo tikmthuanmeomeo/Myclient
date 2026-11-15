@@ -12,7 +12,7 @@ public class NoFall extends Module {
     @Override
     public void onTick() {
         if (mc.player.fallDistance > 2.5f && !mc.player.isFallFlying() && mc.getNetworkHandler() != null) {
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true));
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true, mc.player.horizontalCollision));
         }
     }
 }

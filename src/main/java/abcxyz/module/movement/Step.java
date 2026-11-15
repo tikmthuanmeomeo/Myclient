@@ -21,14 +21,14 @@ public class Step extends Module {
 
     @Override
     public void onTick() {
-        EntityAttributeInstance attribute = mc.player.getAttributeInstance(EntityAttributes.GENERIC_STEP_HEIGHT);
+        EntityAttributeInstance attribute = mc.player.getAttributeInstance(EntityAttributes.STEP_HEIGHT);
         if (attribute != null && attribute.getBaseValue() != height.d()) attribute.setBaseValue(height.d());
     }
 
     @Override
     public void onDisable() {
         if (mc.player == null) return;
-        EntityAttributeInstance attribute = mc.player.getAttributeInstance(EntityAttributes.GENERIC_STEP_HEIGHT);
+        EntityAttributeInstance attribute = mc.player.getAttributeInstance(EntityAttributes.STEP_HEIGHT);
         if (attribute != null) attribute.setBaseValue(0.6);
     }
 }
