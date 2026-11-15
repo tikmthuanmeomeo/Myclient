@@ -76,7 +76,7 @@ public class Schematic {
     }
 
     private static BlockState readState(NbtCompound compound) {
-        return NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), compound);
+        return NbtHelper.toBlockState(Registries.BLOCK, compound);
     }
 
     private static void readLitematic(NbtCompound root, List<Entry> out) throws IOException {
