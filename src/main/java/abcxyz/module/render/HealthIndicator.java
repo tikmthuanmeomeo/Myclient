@@ -1,91 +1,83 @@
 package abcxyz.module.render;
 
-import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
 import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
-import abcxyz.render.Projection;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import abcxyz.render.Render3D;
+import abcxyz.render.Render3D.Part;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
-/** Shows how many hearts other players have, right above their heads (not a nametag). */
+/**
+ * Draws one heart per heart of health above the head of other players, in the world:
+ * red = full, pink = half, grey = empty, gold = absorption.
+ */
 public class HealthIndicator extends Module {
+    private static final String HEART = "\u2665";
+    private static final int FULL = 0xFFFF2B2B;
+    private static final int HALF = 0xFFFF9AA2;
+    private static final int EMPTY = 0xFF4A4A4A;
+    private static final int GOLD = 0xFFFFD700;
+    private static final int PER_ROW = 10;
+    private static final int MAX_ROWS = 3;
+
     private final NumSetting range = add(new NumSetting("Range", 64, 8, 256, 8));
-    private final NumSetting size = add(new NumSetting("Size", 1.0, 0.5, 2.5, 0.1));
-    private final BoolSetting list = add(new BoolSetting("List", false));
+    private final NumSetting size = add(new NumSetting("Size", 1.0, 0.5, 3.0, 0.1));
 
     public HealthIndicator() {
-        super("HealthIndicator", "Shows the hearts of other players above their heads", Category.Render);
+        super("HealthIndicator", "Shows one heart per heart above other players", Category.Render);
     }
 
-    private static int color(float hp, float max) {
-        float ratio = max <= 0 ? 0 : hp / max;
-        if (ratio > 0.66f) return 0xFF55FF55;
-        if (ratio > 0.33f) return 0xFFFFFF55;
-        return 0xFFFF5555;
-    }
-
-    private static String hearts(float health) {
-        float h = health / 2.0f;
-        return h == Math.floor(h) ? String.valueOf((int) h) : String.format("%.1f", h);
-    }
-
-    private List<AbstractClientPlayerEntity> nearby() {
-        List<AbstractClientPlayerEntity> result = new ArrayList<>();
-        for (AbstractClientPlayerEntity p : mc.world.getPlayers()) {
-            if (p == mc.player || !p.isAlive()) continue;
-            if (mc.player.distanceTo(p) > range.d()) continue;
-            result.add(p);
+    /** Appends hearts to a row list; each element of states is 2 = full, 1 = half, 0 = empty. */
+    private static List<List<Part>> rows(List<int[]> hearts) {
+        List<List<Part>> rows = new ArrayList<>();
+        for (int i = 0; i < hearts.size() && rows.size() < MAX_ROWS; i += PER_ROW) {
+            List<Part> row = new ArrayList<>();
+            // merge neighbours with the same colour into one piece of text
+            StringBuilder run = new StringBuilder();
+            int runColor = 0;
+            for (int j = i; j < Math.min(hearts.size(), i + PER_ROW); j++) {
+                int[] heart = hearts.get(j);
+                int color = heart[1];
+                if (run.length() > 0 && color != runColor) {
+                    row.add(new Part(run.toString(), runColor));
+                    run.setLength(0);
+                }
+                runColor = color;
+                run.append(HEART);
+            }
+            if (run.length() > 0) row.add(new Part(run.toString(), runColor));
+            rows.add(row);
         }
-        result.sort(Comparator.comparingDouble(p -> mc.player.distanceTo(p)));
-        return result;
+        return rows;
     }
 
     @Override
-    public void onHud(DrawContext context) {
-        if (mc.world == null) return;
-        float delta = Projection.tickDelta();
-        TextRenderer tr = mc.textRenderer;
-        List<AbstractClientPlayerEntity> players = nearby();
-        for (AbstractClientPlayerEntity p : players) {
-            Vec3d above = p.getLerpedPos(delta).add(0, p.getHeight() + 0.3, 0);
-            double[] screen = Projection.toScreen(above);
-            if (screen == null) continue;
-            float hp = p.getHealth();
+    public void onRender3D(WorldRenderContext context) {
+        float delta = context.tickCounter().getTickDelta(true);
+        for (AbstractClientPlayerEntity p : mc.world.getPlayers()) {
+            if (p == mc.player || !p.isAlive()) continue;
+            if (mc.player.distanceTo(p) > range.d()) continue;
+
+            float health = p.getHealth();
+            int maxHearts = Math.max(1, (int) Math.ceil(p.getMaxHealth() / 2.0f));
+            List<int[]> hearts = new ArrayList<>();
+            for (int i = 0; i < maxHearts; i++) {
+                float left = health - i * 2.0f;
+                if (left >= 2.0f) hearts.add(new int[]{2, FULL});
+                else if (left >= 1.0f) hearts.add(new int[]{1, HALF});
+                else hearts.add(new int[]{0, EMPTY});
+            }
             float absorption = p.getAbsorptionAmount();
-            String heart = "\u2665";
-            String number = " " + hearts(hp);
-            String extra = absorption > 0 ? " +" + hearts(absorption) : "";
-            int total = tr.getWidth(heart + number + extra);
-            MatrixStack ms = context.getMatrices();
-            ms.push();
-            ms.translate((float) screen[0], (float) screen[1], 0f);
-            ms.scale((float) size.d(), (float) size.d(), 1f);
-            int x = -total / 2;
-            int y = -9;
-            context.drawTextWithShadow(tr, heart, x, y, 0xFFFF3B3B);
-            context.drawTextWithShadow(tr, number, x + tr.getWidth(heart), y, color(hp, p.getMaxHealth()));
-            if (!extra.isEmpty()) {
-                context.drawTextWithShadow(tr, extra, x + tr.getWidth(heart + number), y, 0xFFFFD700);
-            }
-            ms.pop();
-        }
-        if (list.on()) {
-            int y = 16;
-            int shown = 0;
-            for (AbstractClientPlayerEntity p : players) {
-                if (shown++ >= 8) break;
-                String text = p.getName().getString() + "  \u2665 " + hearts(p.getHealth());
-                context.drawTextWithShadow(tr, text, 4, y, color(p.getHealth(), p.getMaxHealth()));
-                y += 10;
-            }
+            int goldHearts = (int) Math.ceil(absorption / 2.0f);
+            for (int i = 0; i < goldHearts; i++) hearts.add(new int[]{2, GOLD});
+
+            Vec3d pos = p.getLerpedPos(delta).add(0, p.getHeight() + 0.25, 0);
+            Render3D.textRows(context, rows(hearts), pos, size.d());
         }
     }
 }

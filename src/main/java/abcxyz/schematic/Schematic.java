@@ -2,6 +2,7 @@ package abcxyz.schematic;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.item.Item;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtIo;
@@ -15,8 +16,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A loaded schematic. Block positions are relative to the minimum corner of the schematic (0, 0, 0).
@@ -25,6 +28,8 @@ import java.util.Map;
 public class Schematic {
     public final String name;
     private final Map<Long, BlockState> blocks = new HashMap<>();
+    /** Items that are needed to build the schematic. */
+    public final Set<Item> items = new HashSet<>();
     public int sizeX;
     public int sizeY;
     public int sizeZ;
@@ -71,6 +76,7 @@ public class Schematic {
         schematic.sizeZ = maxZ - minZ + 1;
         for (Entry e : entries) {
             schematic.blocks.put(BlockPos.asLong(e.x() - minX, e.y() - minY, e.z() - minZ), e.state());
+            schematic.items.add(e.state().getBlock().asItem());
         }
         return schematic;
     }

@@ -20,6 +20,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.state.property.Property;
 import net.minecraft.state.property.Properties;
 import net.minecraft.text.Text;
@@ -44,8 +45,9 @@ import java.util.stream.Stream;
 /**
  * Places the blocks of a schematic with the correct orientation (observers, dispensers, pistons, hoppers, stairs...).
  * Put .litematic or .nbt files in the "schematics" folder of the game directory, choose one in "File",
- * stand where the schematic should start and press "SetOrigin" (its lowest corner goes to your feet).
- * Hold the use key (right click) with the right blocks in your hotbar and it places what is missing around you.
+ * and it starts by itself: the lowest corner of the schematic goes where you stand when it finishes loading
+ * (SetOrigin / Offset move it later). Blocks missing from the hotbar are taken from your inventory.
+ * It places what is missing within reach, so walk along the build.
  * For every block it looks for a face to click and a look direction that makes the game itself produce the same
  * block state as in the schematic, then sends that look direction to the server before placing.
  */
@@ -64,7 +66,8 @@ public class EasyPlace extends Module {
     private final NumSetting offsetX = add(new NumSetting("OffsetX", 0, -512, 512, 1));
     private final NumSetting offsetY = add(new NumSetting("OffsetY", 0, -64, 320, 1));
     private final NumSetting offsetZ = add(new NumSetting("OffsetZ", 0, -512, 512, 1));
-    private final ModeSetting trigger = add(new ModeSetting("Trigger", "UseKey", "UseKey", "Auto"));
+    private final ModeSetting trigger = add(new ModeSetting("PlaceMode", "Auto", "Auto", "UseKey"));
+    private final BoolSetting fromInventory = add(new BoolSetting("FromInventory", true));
     private final NumSetting range = add(new NumSetting("Range", 4.5, 1.0, 6.0, 0.1));
     private final NumSetting delay = add(new NumSetting("Delay", 60, 0, 500, 10));
     private final NumSetting perBurst = add(new NumSetting("PerBurst", 1, 1, 4, 1));
@@ -75,6 +78,7 @@ public class EasyPlace extends Module {
     private String loadedName = null;
     private BlockPos origin = null;
     private long lastPlace = 0L;
+    private long lastSwap = 0L;
     private int ghostTimer = 0;
     private List<BlockPos> ghosts = new ArrayList<>();
 
@@ -119,12 +123,13 @@ public class EasyPlace extends Module {
     @Override
     public void onEnable() {
         scanFiles();
-        if (mc.player != null && origin == null) say("Press SetOrigin where the schematic should start. Files go in the \"schematics\" folder.");
+        if (mc.player != null && file.get().equals("none")) say("Put .litematic / .nbt files in the \"schematics\" folder and pick one in File.");
     }
 
     private void startLoading(String name) {
         loadedName = name;
         schematic = null;
+        origin = null;
         if (name.equals("none")) return;
         loading = true;
         Path path = folder().resolve(name);
@@ -161,7 +166,12 @@ public class EasyPlace extends Module {
         if (!wanted.equals(loadedName) && !loading) startLoading(wanted);
 
         Schematic s = schematic;
-        if (s == null || origin == null) return;
+        if (s == null) return;
+        if (origin == null) {
+            origin = mc.player.getBlockPos();
+            say("Building from " + origin.getX() + " " + origin.getY() + " " + origin.getZ()
+                    + " (use SetOrigin or Offset to move it)");
+        }
         if (--ghostTimer <= 0) {
             ghostTimer = 10;
             ghosts = findMissing(s, 14, 250);
@@ -180,6 +190,7 @@ public class EasyPlace extends Module {
             if (pos.getSquaredDistance(eye) > (reach + 1.0) * (reach + 1.0)) continue;
             BlockState target = s.get(pos.subtract(shift));
             if (target != null && tryPlace(pos, target, eye, reach)) placed++;
+            if (System.currentTimeMillis() - lastSwap < 5) break;
         }
         if (placed > 0) lastPlace = now;
     }
@@ -239,11 +250,38 @@ public class EasyPlace extends Module {
         return -1;
     }
 
+    /** Moves the item from the main inventory to a hotbar slot that does not hold something the schematic needs. */
+    private void bringToHotbar(Item item) {
+        long now = System.currentTimeMillis();
+        if (now - lastSwap < 200 || !mc.player.currentScreenHandler.getCursorStack().isEmpty()) return;
+        if (mc.currentScreen != null) return;
+        int from = -1;
+        for (int i = 9; i < 36 && from == -1; i++) {
+            if (mc.player.getInventory().getStack(i).isOf(item)) from = i;
+        }
+        if (from == -1) return;
+        Schematic s = schematic;
+        int target = -1;
+        for (int i = 0; i < 9 && target == -1; i++) {
+            if (mc.player.getInventory().getStack(i).isEmpty()) target = i;
+        }
+        for (int i = 0; i < 9 && target == -1; i++) {
+            Item held = mc.player.getInventory().getStack(i).getItem();
+            if (s == null || !s.items.contains(held)) target = i;
+        }
+        if (target == -1) return;
+        mc.interactionManager.clickSlot(mc.player.playerScreenHandler.syncId, from, target, SlotActionType.SWAP, mc.player);
+        lastSwap = now;
+    }
+
     private boolean tryPlace(BlockPos pos, BlockState target, Vec3d eye, double reach) {
         Item item = target.getBlock().asItem();
         if (item == Items.AIR) return false;
         int slot = findHotbar(item);
-        if (slot < 0) return false;
+        if (slot < 0) {
+            if (fromInventory.on()) bringToHotbar(item);
+            return false;
+        }
         ItemStack stack = mc.player.getInventory().getStack(slot);
         Plan plan = plan(pos, target, stack, eye, reach);
         if (plan == null) return false;

@@ -18,6 +18,8 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
+import java.util.List;
+
 /** Small helpers for drawing lines, boxes and text in the world (visible through walls). */
 public final class Render3D {
     private Render3D() {
@@ -82,6 +84,43 @@ public final class Render3D {
                 {0, 4}, {1, 5}, {2, 6}, {3, 7}
         };
         for (int[] e : edges) line(b, m, c[e[0]], c[e[1]], argb);
+    }
+
+    /** A piece of text with its own colour. */
+    public record Part(String text, int color) {
+    }
+
+    /**
+     * Rows of coloured text floating at a world position, facing the camera and scaling with distance like a nametag.
+     * rows.get(0) is the bottom row, the next rows are drawn above it.
+     */
+    public static void textRows(WorldRenderContext context, List<List<Part>> rows, Vec3d pos, double sizeMultiplier) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        Camera camera = context.camera();
+        Vec3d cam = camera.getPos();
+        double dist = Math.max(1.0, cam.distanceTo(pos));
+        float scale = (float) (Math.max(0.02, dist * 0.0045) * sizeMultiplier);
+        MatrixStack ms = context.matrixStack();
+        ms.push();
+        ms.translate(pos.x - cam.x, pos.y - cam.y, pos.z - cam.z);
+        ms.multiply(camera.getRotation());
+        ms.scale(-scale, -scale, scale);
+        TextRenderer tr = mc.textRenderer;
+        VertexConsumerProvider.Immediate consumers = mc.getBufferBuilders().getEntityVertexConsumers();
+        Matrix4f matrix = ms.peek().getPositionMatrix();
+        for (int i = 0; i < rows.size(); i++) {
+            int total = 0;
+            for (Part part : rows.get(i)) total += tr.getWidth(part.text());
+            float x = -total / 2f;
+            float y = -(i + 1) * 9f;
+            for (Part part : rows.get(i)) {
+                tr.draw(part.text(), x, y, part.color(), false, matrix, consumers,
+                        TextRenderer.TextLayerType.SEE_THROUGH, 0, 0xF000F0);
+                x += tr.getWidth(part.text());
+            }
+        }
+        consumers.draw();
+        ms.pop();
     }
 
     /** Text that always faces the camera; it keeps a similar size on screen at any distance. */
