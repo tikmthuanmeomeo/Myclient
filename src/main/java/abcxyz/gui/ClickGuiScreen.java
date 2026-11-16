@@ -78,7 +78,13 @@ public class ClickGuiScreen extends Screen {
                 y += ROW_H;
                 if (m.expanded) {
                     for (Setting<?> s : m.settings) {
-                        y = drawSetting(context, x, y, m, s);
+                        if (s.parent != null) continue;
+                        y = drawSetting(context, x, y, m, s, 0);
+                        if (s instanceof BoolSetting b && !b.children.isEmpty() && b.open) {
+                            for (Setting<?> child : b.children) {
+                                y = drawSetting(context, x, y, m, child, 6);
+                            }
+                        }
                     }
                     String bind = listeningBind == m ? "press a key..." : keyName(m.key);
                     context.fill(x, y, x + PANEL_W, y + SETTING_H, 0xFF161616);
@@ -89,25 +95,31 @@ public class ClickGuiScreen extends Screen {
             }
             x += PANEL_W + 6;
         }
-        String hint = "Left: toggle   Right: settings   Middle: keybind   Right Shift: close";
+        String hint = "Left: toggle   Right: settings (also on + entries)   Middle: keybind   Right Shift: close";
         context.drawTextWithShadow(textRenderer, hint, 8, height - 12, 0xFF888888);
     }
 
-    private int drawSetting(DrawContext context, int x, int y, Module m, Setting<?> s) {
+    private int drawSetting(DrawContext context, int x, int y, Module m, Setting<?> s, int indent) {
+        int px = x + indent;
+        int w = PANEL_W - indent;
         context.fill(x, y, x + PANEL_W, y + SETTING_H, 0xFF161616);
+        if (indent > 0) context.fill(px, y, x + PANEL_W, y + SETTING_H, 0xFF1D1D1D);
         if (s instanceof BoolSetting b) {
-            context.drawTextWithShadow(textRenderer, b.name, x + 8, y + 2, 0xFFCCCCCC);
-            context.drawTextWithShadow(textRenderer, b.on() ? "ON" : "OFF", x + PANEL_W - 24, y + 2, b.on() ? 0xFF55FF55 : 0xFFFF5555);
-            hits.add(new Hit(x, y, x + PANEL_W, y + SETTING_H, Kind.BOOL, m, s));
+            context.drawTextWithShadow(textRenderer, b.label, px + 8, y + 2, 0xFFCCCCCC);
+            context.drawTextWithShadow(textRenderer, b.on() ? "ON" : "OFF", px + w - 24, y + 2, b.on() ? 0xFF55FF55 : 0xFFFF5555);
+            if (!b.children.isEmpty()) {
+                context.drawTextWithShadow(textRenderer, b.open ? "-" : "+", px + w - 36, y + 2, 0xFF999999);
+            }
+            hits.add(new Hit(px, y, px + w, y + SETTING_H, Kind.BOOL, m, s));
         } else if (s instanceof NumSetting n) {
             double ratio = (n.d() - n.min) / (n.max - n.min);
-            context.fill(x, y, x + (int) (PANEL_W * ratio), y + SETTING_H, 0xFF24527F);
+            context.fill(px, y, px + (int) (w * ratio), y + SETTING_H, 0xFF24527F);
             String value = n.step >= 1 ? String.valueOf(n.i()) : String.format("%.2f", n.d());
-            context.drawTextWithShadow(textRenderer, n.name + ": " + value, x + 8, y + 2, 0xFFCCCCCC);
-            hits.add(new Hit(x, y, x + PANEL_W, y + SETTING_H, Kind.NUM, m, s));
+            context.drawTextWithShadow(textRenderer, n.label + ": " + value, px + 8, y + 2, 0xFFCCCCCC);
+            hits.add(new Hit(px, y, px + w, y + SETTING_H, Kind.NUM, m, s));
         } else if (s instanceof ModeSetting mode) {
-            context.drawTextWithShadow(textRenderer, mode.name + ": " + mode.get(), x + 8, y + 2, 0xFFCCCCCC);
-            hits.add(new Hit(x, y, x + PANEL_W, y + SETTING_H, Kind.MODE, m, s));
+            context.drawTextWithShadow(textRenderer, mode.label + ": " + mode.get(), px + 8, y + 2, 0xFFCCCCCC);
+            hits.add(new Hit(px, y, px + w, y + SETTING_H, Kind.MODE, m, s));
         }
         return y + SETTING_H;
     }
@@ -130,9 +142,12 @@ public class ClickGuiScreen extends Screen {
                     else if (button == 2) listeningBind = hit.module();
                 }
                 case BOOL -> {
+                    BoolSetting b = (BoolSetting) hit.setting();
                     if (button == 0) {
-                        ((BoolSetting) hit.setting()).toggle();
+                        b.toggle();
                         Config.save();
+                    } else if (button == 1 && !b.children.isEmpty()) {
+                        b.open = !b.open;
                     }
                 }
                 case MODE -> {
