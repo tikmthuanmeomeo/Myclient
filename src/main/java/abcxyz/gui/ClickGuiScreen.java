@@ -4,6 +4,7 @@ import abcxyz.AbcxyzClient;
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
 import abcxyz.core.Config;
+import abcxyz.core.KeySetting;
 import abcxyz.core.Module;
 import abcxyz.core.ModeSetting;
 import abcxyz.core.NumSetting;
@@ -50,7 +51,7 @@ public class ClickGuiScreen extends Screen {
     public static final Map<Category, int[]> POSITIONS = new EnumMap<>(Category.class);
     private static final Set<Category> COLLAPSED = EnumSet.noneOf(Category.class);
 
-    private enum Kind {HEADER, MODULE, BOOL, NUM, MODE, BIND}
+    private enum Kind {HEADER, MODULE, BOOL, NUM, MODE, KEY, BIND}
 
     private record Hit(int x1, int y1, int x2, int y2, Kind kind, Module module, Setting<?> setting, Category category) {
         boolean contains(double x, double y) {
@@ -67,6 +68,7 @@ public class ClickGuiScreen extends Screen {
     private final Map<Setting<?>, Float> boolAnim = new IdentityHashMap<>();
 
     private Module listeningBind = null;
+    private KeySetting listeningKey = null;
     private Hit dragging = null;
     private Category dragPanel = null;
     private int dragOffX, dragOffY;
@@ -293,6 +295,12 @@ public class ClickGuiScreen extends Screen {
             String value = mode.get();
             ctx.drawTextWithShadow(textRenderer, value, px + w - 8 - textRenderer.getWidth(value), y + 4, ACCENT_B);
             if (live) addHit(px, y, px + w, y + SETTING_H, clipTop, clipBottom, Kind.MODE, m, s, category);
+        } else if (s instanceof KeySetting k) {
+            ctx.drawTextWithShadow(textRenderer, k.label, px + 9, y + 4, TEXT);
+            String value = listeningKey == k ? "..." : keyName(k.key());
+            ctx.drawTextWithShadow(textRenderer, value, px + w - 8 - textRenderer.getWidth(value), y + 4,
+                    listeningKey == k ? ACCENT_B : TEXT);
+            if (live) addHit(px, y, px + w, y + SETTING_H, clipTop, clipBottom, Kind.KEY, m, s, category);
         }
         return y + SETTING_H;
     }
@@ -363,6 +371,9 @@ public class ClickGuiScreen extends Screen {
                         applySlider(hit, mouseX);
                     }
                 }
+                case KEY -> {
+                    if (button == 0) listeningKey = (KeySetting) hit.setting();
+                }
                 case BIND -> listeningBind = hit.module();
             }
             return true;
@@ -410,6 +421,16 @@ public class ClickGuiScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (listeningKey != null) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) {
+                listeningKey.set(-1);
+            } else {
+                listeningKey.set(keyCode);
+            }
+            listeningKey = null;
+            Config.save();
+            return true;
+        }
         if (listeningBind != null) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) {
                 listeningBind.key = -1;

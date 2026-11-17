@@ -2,12 +2,15 @@ package abcxyz.module.combat;
 
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
-import abcxyz.core.Module;
+import abcxyz.core.KeySetting;
 import abcxyz.core.ModeSetting;
+import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
+import abcxyz.core.Rotations;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.RespawnAnchorBlock;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -21,30 +24,44 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.function.Predicate;
 
 /**
- * Blows up the respawn anchor you are looking at without hurting yourself:
- * 1) places a block next to the anchor on the side that faces you (the shield),
- * 2) charges it with glowstone, 3) explodes it with an item that is not glowstone.
- * It only touches the anchor under your crosshair, and does nothing in the Nether (anchors don't explode there).
+ * Hold the activate key (default H) and it blows up a respawn anchor without hurting you:
+ * 1) with Rotate it turns to the anchor under the crosshair, or to the closest one within Range,
+ * 2) places a shield block next to the anchor on the side that faces you,
+ * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone,
+ * 5) "Block after": places a block where the anchor was (Where = Spot) or on top of that spot (Where = Above).
+ * It does nothing in the Nether, because anchors don't explode there. Set ActivateKey to None to always be active.
  */
 public class SafeAnchor extends Module {
+    private final NumSetting range = add(new NumSetting("Range", 4.5, 1, 6, 0.1));
     private final NumSetting delay = add(new NumSetting("Delay", 50, 0, 500, 10));
     private final ModeSetting shield = add(new ModeSetting("Shield", "Obsidian", "Obsidian", "AnyBlock", "Off"));
+    private final ModeSetting top = add(new ModeSetting("Top", "Spot", "Spot", "Above"));
+    private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
+    private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
+    private final KeySetting activateKey = add(new KeySetting("ActivateKey", GLFW.GLFW_KEY_H));
     private final BoolSetting switchBack = add(new BoolSetting("SwitchBack", true));
-    private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true));
 
     private long last = 0L;
     private int previousSlot = -1;
     private int shieldTries = 0;
     private BlockPos lastAnchor = null;
-    private BlockPos pendingAfter = null;
-    private long pendingSince = 0L;
+
+    private int ticks = 0;
+    private int rotatedTick = -1;
+
+    private BlockPos topPending = null;
+    private long topStart = 0L;
 
     public SafeAnchor() {
-        super("SafeAnchor", "Charges and explodes the anchor you look at behind a shield block", Category.Combat);
+        super("SafeAnchor", "Hold the key: look at the anchor, shield, charge and explode it safely", Category.Combat);
+        activateKey.label = "Activate key";
+        placeAfter.label = "Block after";
+        top.label = "Where";
     }
 
     @Override
@@ -53,11 +70,20 @@ public class SafeAnchor extends Module {
     }
 
     @Override
+    public void onTick() {
+        ticks++;
+    }
+
+    @Override
     public void onDisable() {
         restoreSlot();
+        reset();
+    }
+
+    private void reset() {
         shieldTries = 0;
         lastAnchor = null;
-        pendingAfter = null;
+        topPending = null;
     }
 
     private void restoreSlot() {
@@ -65,6 +91,11 @@ public class SafeAnchor extends Module {
             mc.player.getInventory().selectedSlot = previousSlot;
         }
         previousSlot = -1;
+    }
+
+    private boolean active() {
+        int key = activateKey.key();
+        return key < 0 || InputUtil.isKeyPressed(mc.getWindow().getHandle(), key);
     }
 
     private int findHotbar(Predicate<ItemStack> filter) {
@@ -77,6 +108,70 @@ public class SafeAnchor extends Module {
     private void select(int slot) {
         if (previousSlot == -1) previousSlot = mc.player.getInventory().selectedSlot;
         mc.player.getInventory().selectedSlot = slot;
+    }
+
+    private int findBlockSlot(BlockPos ref) {
+        return findHotbar(stack -> {
+            if (shield.is("AnyBlock")) {
+                return stack.getItem() instanceof BlockItem item && !stack.isOf(Items.GLOWSTONE)
+                        && !stack.isOf(Items.RESPAWN_ANCHOR) && item.getBlock().getDefaultState().isFullCube(mc.world, ref);
+            }
+            return stack.isOf(Items.OBSIDIAN);
+        });
+    }
+
+    private boolean click(BlockHitResult hit) {
+        ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
+        if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+        return result.isAccepted();
+    }
+
+    /** With Rotate on, turns to the point and waits one tick so the server has seen the new rotation. */
+    private boolean face(Vec3d point) {
+        if (!rotate.on()) return true;
+        if (!Rotations.isLookingAt(point, 1.5f)) {
+            Rotations.lookAt(point);
+            rotatedTick = ticks;
+            return false;
+        }
+        return ticks > rotatedTick;
+    }
+
+    private BlockPos findAnchor() {
+        if (mc.crosshairTarget instanceof BlockHitResult look && look.getType() == HitResult.Type.BLOCK
+                && mc.world.getBlockState(look.getBlockPos()).isOf(Blocks.RESPAWN_ANCHOR)
+                && mc.player.getEyePos().distanceTo(Vec3d.ofCenter(look.getBlockPos())) <= range.d() + 1.0) {
+            return look.getBlockPos();
+        }
+        if (!rotate.on()) return null;
+        Vec3d eye = mc.player.getEyePos();
+        BlockPos origin = mc.player.getBlockPos();
+        int r = (int) Math.ceil(range.d());
+        BlockPos best = null;
+        double bestDist = range.d() * range.d();
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    BlockPos pos = origin.add(dx, dy, dz);
+                    if (!mc.world.getBlockState(pos).isOf(Blocks.RESPAWN_ANCHOR)) continue;
+                    double d = eye.squaredDistanceTo(Vec3d.ofCenter(pos));
+                    if (d <= bestDist) {
+                        bestDist = d;
+                        best = pos.toImmutable();
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /** A click on the face of the anchor that points at you. */
+    private BlockHitResult hitFor(BlockPos anchor) {
+        Vec3d eye = mc.player.getEyePos();
+        Vec3d c = Vec3d.ofCenter(anchor);
+        Direction side = Direction.getFacing(eye.x - c.x, eye.y - c.y, eye.z - c.z);
+        Vec3d pos = c.add(side.getOffsetX() * 0.5, side.getOffsetY() * 0.5, side.getOffsetZ() * 0.5);
+        return new BlockHitResult(pos, side, anchor, false);
     }
 
     /** True when a solid block sits between the explosion (the anchor) and both the eyes and the middle of the player. */
@@ -92,51 +187,6 @@ public class SafeAnchor extends Module {
                     RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, mc.player));
             if (hit.getType() == HitResult.Type.MISS) return false;
         }
-        return true;
-    }
-
-    /** Hotbar slot with the block used for shielding / filling: obsidian, or any full block when Shield isn't "Obsidian". */
-    private int findBlockSlot(BlockPos ref) {
-        return findHotbar(stack -> {
-            if (shield.is("Obsidian")) return stack.isOf(Items.OBSIDIAN);
-            return stack.getItem() instanceof BlockItem item && !stack.isOf(Items.GLOWSTONE)
-                    && !stack.isOf(Items.RESPAWN_ANCHOR) && item.getBlock().getDefaultState().isFullCube(mc.world, ref);
-        });
-    }
-
-    /** Puts a block back where the anchor was, against the first solid neighbour (the block under it first). */
-    private void placeBlockAt(BlockPos pos) {
-        if (!mc.world.getBlockState(pos).isReplaceable()) return;
-        if (mc.player.getBoundingBox().intersects(new Box(pos))) return;
-        int slot = findBlockSlot(pos);
-        if (slot == -1) return;
-        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
-        for (Direction side : order) {
-            BlockPos against = pos.offset(side);
-            if (mc.world.getBlockState(against).isReplaceable()) continue;
-            Direction face = side.getOpposite();
-            select(slot);
-            Vec3d hitPos = Vec3d.ofCenter(against).add(face.getOffsetX() * 0.5, face.getOffsetY() * 0.5, face.getOffsetZ() * 0.5);
-            ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND,
-                    new BlockHitResult(hitPos, face, against, false));
-            if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
-            return;
-        }
-    }
-
-    /** Waits for the explosion, then fills the hole. Returns true while it is still busy with that. */
-    private boolean handlePending() {
-        if (pendingAfter == null) return false;
-        long now = System.currentTimeMillis();
-        if (now - pendingSince > 1000L) {
-            pendingAfter = null;
-            return false;
-        }
-        if (now - last < delay.d()) return true;
-        if (mc.world.getBlockState(pendingAfter).isOf(Blocks.RESPAWN_ANCHOR)) return true; // not exploded yet
-        last = now;
-        placeBlockAt(pendingAfter);
-        pendingAfter = null;
         return true;
     }
 
@@ -161,33 +211,79 @@ public class SafeAnchor extends Module {
 
         select(slot);
         Vec3d hitPos = Vec3d.ofCenter(anchor).add(bestSide.getOffsetX() * 0.5, bestSide.getOffsetY() * 0.5, bestSide.getOffsetZ() * 0.5);
-        ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND,
-                new BlockHitResult(hitPos, bestSide, anchor, false));
-        if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+        click(new BlockHitResult(hitPos, bestSide, anchor, false));
         return true;
+    }
+
+    /** After the explosion: put a block where the anchor was (or on top of that spot). */
+    private void handleTop(long now) {
+        if (!placeAfter.on() || now - topStart > 2000) {
+            finishTop(now);
+            return;
+        }
+        BlockPos spot = topPending;
+        if (mc.world.getBlockState(spot).isOf(Blocks.RESPAWN_ANCHOR)) return; // explosion not processed yet
+        int slot = findBlockSlot(spot);
+        if (slot == -1) {
+            mc.player.sendMessage(Text.literal("SafeAnchor: no block in hotbar for the top"), true);
+            finishTop(now);
+            return;
+        }
+        BlockPos[] candidates = top.is("Above") ? new BlockPos[]{spot.up(), spot} : new BlockPos[]{spot};
+        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        for (BlockPos place : candidates) {
+            if (!mc.world.getBlockState(place).isReplaceable()) {
+                finishTop(now); // already filled
+                return;
+            }
+            if (mc.player.getBoundingBox().intersects(new Box(place))) continue;
+            for (Direction d : order) {
+                BlockPos support = place.offset(d);
+                if (mc.world.getBlockState(support).isReplaceable()) continue;
+                if (!face(Vec3d.ofCenter(spot))) return;
+                Direction clicked = d.getOpposite();
+                Vec3d hitPos = Vec3d.ofCenter(support).add(clicked.getOffsetX() * 0.5, clicked.getOffsetY() * 0.5, clicked.getOffsetZ() * 0.5);
+                select(slot);
+                click(new BlockHitResult(hitPos, clicked, support, false));
+                finishTop(now);
+                return;
+            }
+        }
+        mc.player.sendMessage(Text.literal("SafeAnchor: nothing to place the top block against"), true);
+        finishTop(now);
+    }
+
+    private void finishTop(long now) {
+        topPending = null;
+        last = now;
+        restoreSlot();
     }
 
     @Override
     public void onFrame() {
-        if (mc.currentScreen != null || mc.interactionManager == null) return;
+        if (mc.player == null || mc.world == null || mc.interactionManager == null || mc.currentScreen != null) return;
         if (mc.world.getDimension().respawnAnchorWorks()) return;
-        if (handlePending()) return;
+        long now = System.currentTimeMillis();
+        if (now - last < delay.d()) return;
 
-        if (!(mc.crosshairTarget instanceof BlockHitResult look)
-                || !mc.world.getBlockState(look.getBlockPos()).isOf(Blocks.RESPAWN_ANCHOR)) {
+        if (topPending != null) {
+            handleTop(now);
+            return;
+        }
+
+        BlockPos anchor = active() ? findAnchor() : null;
+        if (anchor == null) {
             if (previousSlot != -1) restoreSlot();
             shieldTries = 0;
             lastAnchor = null;
             return;
         }
-        long now = System.currentTimeMillis();
-        if (now - last < delay.d()) return;
-
-        BlockPos anchor = look.getBlockPos();
         if (!anchor.equals(lastAnchor)) {
             lastAnchor = anchor;
             shieldTries = 0;
         }
+        if (!face(Vec3d.ofCenter(anchor))) return;
+
         BlockState state = mc.world.getBlockState(anchor);
         int charges = state.get(RespawnAnchorBlock.CHARGES);
 
@@ -213,8 +309,7 @@ public class SafeAnchor extends Module {
             }
             select(slot);
             last = now;
-            ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, look);
-            if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+            click(hitFor(anchor));
             return;
         }
 
@@ -225,13 +320,9 @@ public class SafeAnchor extends Module {
         if (slot == -1) return;
         select(slot);
         last = now;
-        ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, look);
-        if (result.isAccepted()) {
-            mc.player.swingHand(Hand.MAIN_HAND);
-            if (placeAfter.on()) {
-                pendingAfter = anchor;
-                pendingSince = now;
-            }
+        if (click(hitFor(anchor)) && placeAfter.on()) {
+            topPending = anchor.toImmutable();
+            topStart = now;
         }
     }
 }
