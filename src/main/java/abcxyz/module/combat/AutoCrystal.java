@@ -2,6 +2,7 @@ package abcxyz.module.combat;
 
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
+import abcxyz.core.ModeSetting;
 import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
 import net.minecraft.block.Blocks;
@@ -12,6 +13,7 @@ import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -49,6 +51,8 @@ public class AutoCrystal extends Module {
 
     private final BoolSetting autoSwitch = add(new BoolSetting("AutoSwitch", true));
     private final BoolSetting antiSuicide = add(new BoolSetting("AntiSuicide", true));
+    /** Off = no rotation, Packet = look at the target only on the server (restored right after), Client = turns your real view. */
+    private final ModeSetting rotate = add(new ModeSetting("Rotate", "Packet", "Off", "Packet", "Client"));
 
     private long lastPlace = 0L;
     private long lastBreak = 0L;
@@ -153,6 +157,31 @@ public class AutoCrystal extends Module {
         return antiSuicide.on() && self >= mc.player.getHealth() + mc.player.getAbsorptionAmount() - 1.0f;
     }
 
+    // ---------------------------------------------------------------- rotation
+
+    private boolean rotateTo(Vec3d target) {
+        if (rotate.is("Off")) return false;
+        Vec3d eye = mc.player.getEyePos();
+        double dx = target.x - eye.x, dy = target.y - eye.y, dz = target.z - eye.z;
+        double flat = Math.sqrt(dx * dx + dz * dz);
+        float yaw = MathHelper.wrapDegrees((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+        float pitch = MathHelper.clamp((float) -Math.toDegrees(Math.atan2(dy, flat)), -90f, 90f);
+        if (rotate.is("Client")) {
+            mc.player.setYaw(yaw);
+            mc.player.setPitch(pitch);
+            return false;
+        }
+        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch,
+                mc.player.isOnGround(), mc.player.horizontalCollision));
+        return true;
+    }
+
+    /** After a packet rotation: tell the server where you are really looking again. */
+    private void restoreRotation() {
+        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(),
+                mc.player.isOnGround(), mc.player.horizontalCollision));
+    }
+
     // ---------------------------------------------------------------- actions
 
     @Override
@@ -194,8 +223,10 @@ public class AutoCrystal extends Module {
             }
         }
         if (best == null) return false;
+        boolean rotated = rotateTo(best.getBoundingBox().getCenter());
         mc.interactionManager.attackEntity(mc.player, best);
         mc.player.swingHand(Hand.MAIN_HAND);
+        if (rotated) restoreRotation();
         return true;
     }
 
@@ -266,7 +297,9 @@ public class AutoCrystal extends Module {
             hand = Hand.MAIN_HAND;
         }
         BlockHitResult hit = new BlockHitResult(Vec3d.ofCenter(bestBase).add(0, 0.5, 0), Direction.UP, bestBase, false);
+        boolean rotated = rotateTo(hit.getPos());
         ActionResult result = mc.interactionManager.interactBlock(mc.player, hand, hit);
         if (result.isAccepted()) mc.player.swingHand(hand);
+        if (rotated) restoreRotation();
     }
 }

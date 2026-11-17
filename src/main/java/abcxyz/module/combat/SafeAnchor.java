@@ -34,11 +34,14 @@ public class SafeAnchor extends Module {
     private final NumSetting delay = add(new NumSetting("Delay", 50, 0, 500, 10));
     private final ModeSetting shield = add(new ModeSetting("Shield", "Obsidian", "Obsidian", "AnyBlock", "Off"));
     private final BoolSetting switchBack = add(new BoolSetting("SwitchBack", true));
+    private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true));
 
     private long last = 0L;
     private int previousSlot = -1;
     private int shieldTries = 0;
     private BlockPos lastAnchor = null;
+    private BlockPos pendingAfter = null;
+    private long pendingSince = 0L;
 
     public SafeAnchor() {
         super("SafeAnchor", "Charges and explodes the anchor you look at behind a shield block", Category.Combat);
@@ -54,6 +57,7 @@ public class SafeAnchor extends Module {
         restoreSlot();
         shieldTries = 0;
         lastAnchor = null;
+        pendingAfter = null;
     }
 
     private void restoreSlot() {
@@ -91,12 +95,53 @@ public class SafeAnchor extends Module {
         return true;
     }
 
-    private boolean placeShield(BlockPos anchor) {
-        int slot = findHotbar(stack -> {
+    /** Hotbar slot with the block used for shielding / filling: obsidian, or any full block when Shield isn't "Obsidian". */
+    private int findBlockSlot(BlockPos ref) {
+        return findHotbar(stack -> {
             if (shield.is("Obsidian")) return stack.isOf(Items.OBSIDIAN);
             return stack.getItem() instanceof BlockItem item && !stack.isOf(Items.GLOWSTONE)
-                    && !stack.isOf(Items.RESPAWN_ANCHOR) && item.getBlock().getDefaultState().isFullCube(mc.world, anchor);
+                    && !stack.isOf(Items.RESPAWN_ANCHOR) && item.getBlock().getDefaultState().isFullCube(mc.world, ref);
         });
+    }
+
+    /** Puts a block back where the anchor was, against the first solid neighbour (the block under it first). */
+    private void placeBlockAt(BlockPos pos) {
+        if (!mc.world.getBlockState(pos).isReplaceable()) return;
+        if (mc.player.getBoundingBox().intersects(new Box(pos))) return;
+        int slot = findBlockSlot(pos);
+        if (slot == -1) return;
+        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        for (Direction side : order) {
+            BlockPos against = pos.offset(side);
+            if (mc.world.getBlockState(against).isReplaceable()) continue;
+            Direction face = side.getOpposite();
+            select(slot);
+            Vec3d hitPos = Vec3d.ofCenter(against).add(face.getOffsetX() * 0.5, face.getOffsetY() * 0.5, face.getOffsetZ() * 0.5);
+            ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND,
+                    new BlockHitResult(hitPos, face, against, false));
+            if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+            return;
+        }
+    }
+
+    /** Waits for the explosion, then fills the hole. Returns true while it is still busy with that. */
+    private boolean handlePending() {
+        if (pendingAfter == null) return false;
+        long now = System.currentTimeMillis();
+        if (now - pendingSince > 1000L) {
+            pendingAfter = null;
+            return false;
+        }
+        if (now - last < delay.d()) return true;
+        if (mc.world.getBlockState(pendingAfter).isOf(Blocks.RESPAWN_ANCHOR)) return true; // not exploded yet
+        last = now;
+        placeBlockAt(pendingAfter);
+        pendingAfter = null;
+        return true;
+    }
+
+    private boolean placeShield(BlockPos anchor) {
+        int slot = findBlockSlot(anchor);
         if (slot == -1) return false;
 
         Vec3d body = mc.player.getPos().add(0, mc.player.getHeight() / 2.0, 0);
@@ -126,6 +171,7 @@ public class SafeAnchor extends Module {
     public void onFrame() {
         if (mc.currentScreen != null || mc.interactionManager == null) return;
         if (mc.world.getDimension().respawnAnchorWorks()) return;
+        if (handlePending()) return;
 
         if (!(mc.crosshairTarget instanceof BlockHitResult look)
                 || !mc.world.getBlockState(look.getBlockPos()).isOf(Blocks.RESPAWN_ANCHOR)) {
@@ -180,6 +226,12 @@ public class SafeAnchor extends Module {
         select(slot);
         last = now;
         ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, look);
-        if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+        if (result.isAccepted()) {
+            mc.player.swingHand(Hand.MAIN_HAND);
+            if (placeAfter.on()) {
+                pendingAfter = anchor;
+                pendingSince = now;
+            }
+        }
     }
 }
