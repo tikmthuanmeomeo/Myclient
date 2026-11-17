@@ -51,8 +51,11 @@ public class AutoCrystal extends Module {
 
     private final BoolSetting autoSwitch = add(new BoolSetting("AutoSwitch", true));
     private final BoolSetting antiSuicide = add(new BoolSetting("AntiSuicide", true));
-    /** Off = no rotation, Packet = look at the target only on the server (restored right after), Client = turns your real view. */
-    private final ModeSetting rotate = add(new ModeSetting("Rotate", "Packet", "Off", "Packet", "Client"));
+    /**
+     * Off = no rotation, Packet = look at the target only on the server and tell it your real view again right after,
+     * Server = server-side look only, your real view is not sent back until it changes, Client = turns your real view.
+     */
+    private final ModeSetting rotate = add(new ModeSetting("Rotate", "Packet", "Off", "Packet", "Server", "Client"));
 
     private long lastPlace = 0L;
     private long lastBreak = 0L;
@@ -173,7 +176,7 @@ public class AutoCrystal extends Module {
         }
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch,
                 mc.player.isOnGround(), mc.player.horizontalCollision));
-        return true;
+        return !rotate.is("Server");
     }
 
     /** After a packet rotation: tell the server where you are really looking again. */

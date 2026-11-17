@@ -11,6 +11,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.RespawnAnchorBlock;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -30,6 +31,8 @@ import java.util.function.Predicate;
 
 /**
  * Hold the activate key (default H) and it blows up a respawn anchor without hurting you:
+ * 0) "Place anchor": when there is no anchor yet it places one from your hotbar, next to the closest player
+ *    (Rotate on) or on the block face you are looking at,
  * 1) with Rotate it turns to the anchor under the crosshair, or to the closest one within Range,
  * 2) places a shield block next to the anchor on the side that faces you,
  * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone,
@@ -43,6 +46,8 @@ public class SafeAnchor extends Module {
     private final ModeSetting top = add(new ModeSetting("Top", "Spot", "Spot", "Above"));
     private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
     private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
+    private final NumSetting targetRange = add(new NumSetting("TargetRange", 8, 2, 16, 1));
+    private final BoolSetting placeAnchor = add(new BoolSetting("PlaceAnchor", true)).with(targetRange);
     private final KeySetting activateKey = add(new KeySetting("ActivateKey", GLFW.GLFW_KEY_H));
     private final BoolSetting switchBack = add(new BoolSetting("SwitchBack", true));
 
@@ -57,11 +62,16 @@ public class SafeAnchor extends Module {
     private BlockPos topPending = null;
     private long topStart = 0L;
 
+    private BlockPos placedAt = null;
+    private long placedTime = 0L;
+
     public SafeAnchor() {
         super("SafeAnchor", "Hold the key: look at the anchor, shield, charge and explode it safely", Category.Combat);
         activateKey.label = "Activate key";
         placeAfter.label = "Block after";
         top.label = "Where";
+        targetRange.label = "Target range";
+        placeAnchor.label = "Place anchor";
     }
 
     @Override
@@ -84,6 +94,7 @@ public class SafeAnchor extends Module {
         shieldTries = 0;
         lastAnchor = null;
         topPending = null;
+        placedAt = null;
     }
 
     private void restoreSlot() {
@@ -138,6 +149,7 @@ public class SafeAnchor extends Module {
     }
 
     private BlockPos findAnchor() {
+        if (placedAt != null && mc.world.getBlockState(placedAt).isOf(Blocks.RESPAWN_ANCHOR)) return placedAt;
         if (mc.crosshairTarget instanceof BlockHitResult look && look.getType() == HitResult.Type.BLOCK
                 && mc.world.getBlockState(look.getBlockPos()).isOf(Blocks.RESPAWN_ANCHOR)
                 && mc.player.getEyePos().distanceTo(Vec3d.ofCenter(look.getBlockPos())) <= range.d() + 1.0) {
@@ -215,6 +227,97 @@ public class SafeAnchor extends Module {
         return true;
     }
 
+    private record PlaceSpot(BlockPos place, BlockHitResult hit) {
+    }
+
+    private boolean canPlaceAt(BlockPos pos) {
+        return mc.world.getBlockState(pos).isReplaceable()
+                && mc.world.getOtherEntities(null, new Box(pos), e -> !e.isSpectator()).isEmpty();
+    }
+
+    private PlayerEntity findTarget() {
+        PlayerEntity best = null;
+        double bestDist = targetRange.d();
+        for (PlayerEntity p : mc.world.getPlayers()) {
+            if (p == mc.player || !p.isAlive() || p.isSpectator()) continue;
+            double d = mc.player.distanceTo(p);
+            if (d <= bestDist) {
+                bestDist = d;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Where to put the anchor: with Rotate on and a player in TargetRange, next to that player; otherwise on the
+     * face of the block you are looking at.
+     */
+    private PlaceSpot findPlaceSpot() {
+        Vec3d eye = mc.player.getEyePos();
+        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        PlayerEntity target = rotate.on() ? findTarget() : null;
+        if (target != null) {
+            BlockPos tp = target.getBlockPos();
+            PlaceSpot best = null;
+            double bestScore = Double.MAX_VALUE;
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    for (int dy = -1; dy <= 2; dy++) {
+                        BlockPos place = tp.add(dx, dy, dz);
+                        if (!canPlaceAt(place)) continue;
+                        Vec3d c = Vec3d.ofCenter(place);
+                        double mine = eye.distanceTo(c);
+                        if (mine < 1.5 || mine > range.d() + 0.5) continue;
+                        for (Direction d : order) {
+                            BlockPos support = place.offset(d);
+                            if (mc.world.getBlockState(support).isReplaceable()) continue;
+                            Direction clicked = d.getOpposite();
+                            Vec3d hitPos = Vec3d.ofCenter(support).add(clicked.getOffsetX() * 0.5, clicked.getOffsetY() * 0.5, clicked.getOffsetZ() * 0.5);
+                            if (eye.distanceTo(hitPos) > range.d()) continue;
+                            double score = c.distanceTo(target.getPos());
+                            if (score < bestScore) {
+                                bestScore = score;
+                                best = new PlaceSpot(place.toImmutable(), new BlockHitResult(hitPos, clicked, support, false));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            if (best != null) return best;
+        }
+        if (mc.crosshairTarget instanceof BlockHitResult h && h.getType() == HitResult.Type.BLOCK) {
+            BlockPos place = h.getBlockPos().offset(h.getSide());
+            if (canPlaceAt(place)) return new PlaceSpot(place, h);
+        }
+        return null;
+    }
+
+    /** @return true while it is busy (rotating, placing or waiting for the server), false when there is nothing to do. */
+    private boolean tryPlaceAnchor(long now) {
+        if (placedAt != null) {
+            if (now - placedTime < 700) return true; // waiting for the anchor to show up
+            placedAt = null;
+        }
+        int slot = findHotbar(stack -> stack.isOf(Items.RESPAWN_ANCHOR));
+        if (slot == -1) {
+            last = now;
+            mc.player.sendMessage(Text.literal("SafeAnchor: no respawn anchor in hotbar"), true);
+            return false;
+        }
+        PlaceSpot spot = findPlaceSpot();
+        if (spot == null) return false;
+        if (!face(spot.hit().getPos())) return true;
+        select(slot);
+        last = now;
+        if (click(spot.hit())) {
+            placedAt = spot.place();
+            placedTime = now;
+        }
+        return true;
+    }
+
     /** After the explosion: put a block where the anchor was (or on top of that spot). */
     private void handleTop(long now) {
         if (!placeAfter.on() || now - topStart > 2000) {
@@ -271,8 +374,10 @@ public class SafeAnchor extends Module {
             return;
         }
 
-        BlockPos anchor = active() ? findAnchor() : null;
+        boolean active = active();
+        BlockPos anchor = active ? findAnchor() : null;
         if (anchor == null) {
+            if (active && placeAnchor.on() && tryPlaceAnchor(now)) return;
             if (previousSlot != -1) restoreSlot();
             shieldTries = 0;
             lastAnchor = null;
@@ -320,9 +425,12 @@ public class SafeAnchor extends Module {
         if (slot == -1) return;
         select(slot);
         last = now;
-        if (click(hitFor(anchor)) && placeAfter.on()) {
-            topPending = anchor.toImmutable();
-            topStart = now;
+        if (click(hitFor(anchor))) {
+            placedAt = null;
+            if (placeAfter.on()) {
+                topPending = anchor.toImmutable();
+                topStart = now;
+            }
         }
     }
 }
