@@ -2,7 +2,6 @@ package abcxyz.module.combat;
 
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
-import abcxyz.core.ModeSetting;
 import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
 import net.minecraft.block.Blocks;
@@ -34,7 +33,8 @@ import java.util.List;
  * Places End Crystals on obsidian/bedrock next to the nearest player and breaks them again.
  * Damage is estimated like the vanilla explosion (distance, exposure, armor, resistance), so it only places
  * and breaks crystals that hurt the target enough (MinDamage) and you not too much (MaxSelfDmg).
- * Settings: "Place" (right click: Range, Delay) and "Break" (right click: Range, Delay).
+ * Settings: "Place" (right click: Range, Delay, Rotate) and "Break" (right click: Range, Delay, Rotate).
+ * Rotate tells the server you look at the block (place) or the crystal (break) for that action only.
  */
 public class AutoCrystal extends Module {
     private final NumSetting targetRange = add(new NumSetting("TargetRange", 10, 3, 16, 1));
@@ -43,19 +43,16 @@ public class AutoCrystal extends Module {
 
     private final NumSetting placeRange = add(new NumSetting("PlaceRange", 4.5, 1, 6, 0.1));
     private final NumSetting placeDelay = add(new NumSetting("PlaceDelay", 50, 0, 500, 10));
-    private final BoolSetting place = add(new BoolSetting("Place", true)).with(placeRange, placeDelay);
+    private final BoolSetting placeRotate = add(new BoolSetting("PlaceRotate", true));
+    private final BoolSetting place = add(new BoolSetting("Place", true)).with(placeRange, placeDelay, placeRotate);
 
     private final NumSetting breakRange = add(new NumSetting("BreakRange", 4.5, 1, 6, 0.1));
     private final NumSetting breakDelay = add(new NumSetting("BreakDelay", 50, 0, 500, 10));
-    private final BoolSetting breakCrystals = add(new BoolSetting("Break", true)).with(breakRange, breakDelay);
+    private final BoolSetting breakRotate = add(new BoolSetting("BreakRotate", true));
+    private final BoolSetting breakCrystals = add(new BoolSetting("Break", true)).with(breakRange, breakDelay, breakRotate);
 
     private final BoolSetting autoSwitch = add(new BoolSetting("AutoSwitch", true));
     private final BoolSetting antiSuicide = add(new BoolSetting("AntiSuicide", true));
-    /**
-     * Off = no rotation, Packet = look at the target only on the server and tell it your real view again right after,
-     * Server = server-side look only, your real view is not sent back until it changes, Client = turns your real view.
-     */
-    private final ModeSetting rotate = add(new ModeSetting("Rotate", "Packet", "Off", "Packet", "Server", "Client"));
 
     private long lastPlace = 0L;
     private long lastBreak = 0L;
@@ -67,6 +64,8 @@ public class AutoCrystal extends Module {
         placeDelay.label = "Delay";
         breakRange.label = "Range";
         breakDelay.label = "Delay";
+        placeRotate.label = "Rotate";
+        breakRotate.label = "Rotate";
     }
 
     @Override
@@ -162,24 +161,18 @@ public class AutoCrystal extends Module {
 
     // ---------------------------------------------------------------- rotation
 
-    private boolean rotateTo(Vec3d target) {
-        if (rotate.is("Off")) return false;
+    /** Tells the server you are looking at the point (your own view does not move). Call restoreRotation() after the action. */
+    private void lookAt(Vec3d target) {
         Vec3d eye = mc.player.getEyePos();
         double dx = target.x - eye.x, dy = target.y - eye.y, dz = target.z - eye.z;
         double flat = Math.sqrt(dx * dx + dz * dz);
         float yaw = MathHelper.wrapDegrees((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
         float pitch = MathHelper.clamp((float) -Math.toDegrees(Math.atan2(dy, flat)), -90f, 90f);
-        if (rotate.is("Client")) {
-            mc.player.setYaw(yaw);
-            mc.player.setPitch(pitch);
-            return false;
-        }
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch,
                 mc.player.isOnGround(), mc.player.horizontalCollision));
-        return !rotate.is("Server");
     }
 
-    /** After a packet rotation: tell the server where you are really looking again. */
+    /** After lookAt: tell the server where you are really looking again. */
     private void restoreRotation() {
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(),
                 mc.player.isOnGround(), mc.player.horizontalCollision));
@@ -226,7 +219,8 @@ public class AutoCrystal extends Module {
             }
         }
         if (best == null) return false;
-        boolean rotated = rotateTo(best.getBoundingBox().getCenter());
+        boolean rotated = breakRotate.on();
+        if (rotated) lookAt(best.getBoundingBox().getCenter());
         mc.interactionManager.attackEntity(mc.player, best);
         mc.player.swingHand(Hand.MAIN_HAND);
         if (rotated) restoreRotation();
@@ -300,7 +294,8 @@ public class AutoCrystal extends Module {
             hand = Hand.MAIN_HAND;
         }
         BlockHitResult hit = new BlockHitResult(Vec3d.ofCenter(bestBase).add(0, 0.5, 0), Direction.UP, bestBase, false);
-        boolean rotated = rotateTo(hit.getPos());
+        boolean rotated = placeRotate.on();
+        if (rotated) lookAt(hit.getPos());
         ActionResult result = mc.interactionManager.interactBlock(mc.player, hand, hit);
         if (result.isAccepted()) mc.player.swingHand(hand);
         if (rotated) restoreRotation();
