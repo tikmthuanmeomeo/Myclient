@@ -65,6 +65,7 @@ public class HealthIndicator extends Module {
 
     private final NumSetting range = add(new NumSetting("Range", 64, 8, 256, 8));
     private final NumSetting size = add(new NumSetting("Size", 1.0, 0.5, 3.0, 0.1));
+    private final NumSetting height = add(new NumSetting("Height", 0.6, 0.0, 2.0, 0.05));
     private final BoolSetting players = add(new BoolSetting("Players", true));
     private final BoolSetting mobs = add(new BoolSetting("Mobs", false));
     private final BoolSetting throughWalls = add(new BoolSetting("ThroughWalls", true));
@@ -156,7 +157,7 @@ public class HealthIndicator extends Module {
                 hearts.add(absorption - i * 2.0f >= 2.0f ? Kind.GOLD : Kind.GOLD_HALF);
             }
 
-            Vec3d pos = e.getLerpedPos(delta).add(0, e.getHeight() + 0.3, 0);
+            Vec3d pos = e.getLerpedPos(delta).add(0, e.getHeight() + height.d(), 0);
             double dist = Math.max(1.0, cam.distanceTo(pos));
             float scale = (float) (Math.max(0.012, dist * 0.003) * size.d());
             Matrix4f m = new Matrix4f(base)

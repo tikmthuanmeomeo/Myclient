@@ -1,6 +1,7 @@
 package abcxyz.core;
 
 import abcxyz.AbcxyzClient;
+import abcxyz.gui.ClickGuiScreen;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -44,6 +45,15 @@ public final class Config {
                 if (v != null) s.load(v);
             }
         }
+        for (Category c : Category.values()) {
+            String x = p.getProperty("gui." + c.name() + ".x");
+            String y = p.getProperty("gui." + c.name() + ".y");
+            if (x == null || y == null) continue;
+            try {
+                ClickGuiScreen.POSITIONS.put(c, new int[]{Integer.parseInt(x), Integer.parseInt(y)});
+            } catch (NumberFormatException ignored) {
+            }
+        }
         return true;
     }
 
@@ -57,6 +67,10 @@ public final class Config {
             for (Setting<?> s : m.settings) {
                 p.setProperty(m.name + "." + s.name, s.save());
             }
+        }
+        for (java.util.Map.Entry<Category, int[]> e : ClickGuiScreen.POSITIONS.entrySet()) {
+            p.setProperty("gui." + e.getKey().name() + ".x", String.valueOf(e.getValue()[0]));
+            p.setProperty("gui." + e.getKey().name() + ".y", String.valueOf(e.getValue()[1]));
         }
         try (OutputStream out = Files.newOutputStream(file())) {
             p.store(out, "abcxyz");
