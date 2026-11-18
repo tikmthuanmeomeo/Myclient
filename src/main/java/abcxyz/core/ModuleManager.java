@@ -15,6 +15,7 @@ import abcxyz.module.render.FullBright;
 import abcxyz.module.render.HealthIndicator;
 import abcxyz.module.render.ModuleList;
 import abcxyz.module.render.NoHurtCam;
+import abcxyz.module.render.Skybox;
 import abcxyz.module.render.Tracers;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
@@ -46,6 +47,7 @@ public class ModuleManager {
         modules.add(new Tracers());
         modules.add(new FullBright());
         modules.add(new NoHurtCam());
+        modules.add(new Skybox());
         modules.add(new ModuleList());
         modules.add(new AutoRespawn());
         modules.add(new EasyPlace());

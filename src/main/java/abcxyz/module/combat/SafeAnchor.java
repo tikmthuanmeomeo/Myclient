@@ -31,8 +31,9 @@ import java.util.function.Predicate;
 
 /**
  * Hold the activate key (default H) and it blows up a respawn anchor without hurting you:
- * 0) "Place anchor": when there is no anchor yet it places one from your hotbar, next to the closest player
- *    (Rotate on) or on the block face you are looking at,
+ * 0) "Place anchor": when there is no anchor yet it places one from your hotbar. Mode Target = next to the closest
+ *    player within Target range (on the block face you look at when nobody is around), Mode Crosshair = always on
+ *    the block face you are looking at,
  * 1) with Rotate it turns to the anchor under the crosshair, or to the closest one within Range,
  * 2) places a shield block next to the anchor on the side that faces you,
  * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone,
@@ -47,7 +48,8 @@ public class SafeAnchor extends Module {
     private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
     private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
     private final NumSetting targetRange = add(new NumSetting("TargetRange", 8, 2, 16, 1));
-    private final BoolSetting placeAnchor = add(new BoolSetting("PlaceAnchor", true)).with(targetRange);
+    private final ModeSetting placeMode = add(new ModeSetting("PlaceMode", "Target", "Target", "Crosshair"));
+    private final BoolSetting placeAnchor = add(new BoolSetting("PlaceAnchor", true)).with(targetRange, placeMode);
     private final KeySetting activateKey = add(new KeySetting("ActivateKey", GLFW.GLFW_KEY_H));
     private final BoolSetting switchBack = add(new BoolSetting("SwitchBack", true));
 
@@ -64,6 +66,7 @@ public class SafeAnchor extends Module {
 
     private BlockPos placedAt = null;
     private long placedTime = 0L;
+    private long lastSpotMessage = 0L;
 
     public SafeAnchor() {
         super("SafeAnchor", "Hold the key: look at the anchor, shield, charge and explode it safely", Category.Combat);
@@ -71,6 +74,7 @@ public class SafeAnchor extends Module {
         placeAfter.label = "Block after";
         top.label = "Where";
         targetRange.label = "Target range";
+        placeMode.label = "Mode";
         placeAnchor.label = "Place anchor";
     }
 
@@ -256,19 +260,19 @@ public class SafeAnchor extends Module {
     private PlaceSpot findPlaceSpot() {
         Vec3d eye = mc.player.getEyePos();
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
-        PlayerEntity target = rotate.on() ? findTarget() : null;
+        PlayerEntity target = placeMode.is("Target") ? findTarget() : null;
         if (target != null) {
             BlockPos tp = target.getBlockPos();
             PlaceSpot best = null;
             double bestScore = Double.MAX_VALUE;
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    for (int dy = -1; dy <= 2; dy++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    for (int dy = -2; dy <= 2; dy++) {
                         BlockPos place = tp.add(dx, dy, dz);
                         if (!canPlaceAt(place)) continue;
                         Vec3d c = Vec3d.ofCenter(place);
                         double mine = eye.distanceTo(c);
-                        if (mine < 1.5 || mine > range.d() + 0.5) continue;
+                        if (mine < 2.0 || mine > range.d() + 0.5) continue;
                         for (Direction d : order) {
                             BlockPos support = place.offset(d);
                             if (mc.world.getBlockState(support).isReplaceable()) continue;
@@ -286,6 +290,12 @@ public class SafeAnchor extends Module {
                 }
             }
             if (best != null) return best;
+            if (System.currentTimeMillis() - lastSpotMessage > 1000) {
+                lastSpotMessage = System.currentTimeMillis();
+                mc.player.sendMessage(Text.literal("SafeAnchor: no spot to place an anchor next to " + target.getName().getString()
+                        + " (get closer, Range " + range.d() + ")"), true);
+            }
+            return null;
         }
         if (mc.crosshairTarget instanceof BlockHitResult h && h.getType() == HitResult.Type.BLOCK) {
             BlockPos place = h.getBlockPos().offset(h.getSide());

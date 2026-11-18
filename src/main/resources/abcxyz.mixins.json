@@ -6,7 +6,8 @@
   "client": [
     "EntityMixin",
     "ClientPlayNetworkHandlerMixin",
-    "GameRendererMixin"
+    "GameRendererMixin",
+    "ClientPlayerEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

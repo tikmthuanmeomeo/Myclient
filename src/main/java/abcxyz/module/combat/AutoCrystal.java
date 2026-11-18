@@ -4,6 +4,7 @@ import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
 import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
+import abcxyz.core.SilentRotation;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -26,6 +27,8 @@ import net.minecraft.world.Difficulty;
 import net.minecraft.world.RaycastContext;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Comparator;
 import java.util.List;
 
@@ -34,7 +37,9 @@ import java.util.List;
  * Damage is estimated like the vanilla explosion (distance, exposure, armor, resistance), so it only places
  * and breaks crystals that hurt the target enough (MinDamage) and you not too much (MaxSelfDmg).
  * Settings: "Place" (right click: Range, Delay, Rotate) and "Break" (right click: Range, Delay, Rotate).
- * Rotate tells the server you look at the block (place) or the crystal (break) for that action only.
+ * Rotate tells the server you look at the block (place) or the crystal (break) for that action only. It is put into
+ * the normal movement packet of the tick, so no extra packets are sent and your camera does not move.
+ * Everything runs once per tick, right around the movement packet (see ClientPlayerEntityMixin).
  */
 public class AutoCrystal extends Module {
     private final NumSetting targetRange = add(new NumSetting("TargetRange", 10, 3, 16, 1));
@@ -159,53 +164,89 @@ public class AutoCrystal extends Module {
         return antiSuicide.on() && self >= mc.player.getHealth() + mc.player.getAbsorptionAmount() - 1.0f;
     }
 
-    // ---------------------------------------------------------------- rotation
+    // ---------------------------------------------------------------- tick hooks (called from ClientPlayerEntityMixin)
 
-    /** Tells the server you are looking at the point (your own view does not move). Call restoreRotation() after the action. */
-    private void lookAt(Vec3d target) {
-        Vec3d eye = mc.player.getEyePos();
-        double dx = target.x - eye.x, dy = target.y - eye.y, dz = target.z - eye.z;
-        double flat = Math.sqrt(dx * dx + dz * dz);
-        float yaw = MathHelper.wrapDegrees((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        float pitch = MathHelper.clamp((float) -Math.toDegrees(Math.atan2(dy, flat)), -90f, 90f);
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch,
-                mc.player.isOnGround(), mc.player.horizontalCollision));
-    }
+    private EndCrystalEntity plannedBreak = null;
+    private BlockPos plannedBase = null;
+    private Hand plannedHand = null;
+    private int plannedSlot = -1;
 
-    /** After lookAt: tell the server where you are really looking again. */
-    private void restoreRotation() {
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(),
-                mc.player.isOnGround(), mc.player.horizontalCollision));
-    }
+    /** Crystals we already hit (id -> time) and the last block we placed on, so we don't spam the same action. */
+    private final Map<Integer, Long> attacked = new HashMap<>();
+    private BlockPos lastPlacedBase = null;
+    private long lastPlacedTime = 0L;
 
-    // ---------------------------------------------------------------- actions
-
-    @Override
-    public void onFrame() {
-        if (mc.currentScreen != null || mc.interactionManager == null) return;
+    /** Right before the movement packet of this tick is built: decide what to do and set the silent rotation. */
+    public void beforeMovement() {
+        plannedBreak = null;
+        plannedBase = null;
+        if (mc.player == null || mc.world == null || mc.interactionManager == null || mc.currentScreen != null) return;
         PlayerEntity target = findTarget();
         if (target == null) return;
         long now = System.currentTimeMillis();
+        boolean rotationUsed = false;
 
         if (breakCrystals.on() && now - lastBreak >= breakDelay.d()) {
-            if (doBreak(target)) {
-                lastBreak = now;
-                return;
+            plannedBreak = pickBreak(target, now);
+            if (plannedBreak != null && breakRotate.on()) {
+                SilentRotation.lookAt(mc.player.getEyePos(), plannedBreak.getBoundingBox().getCenter());
+                rotationUsed = true;
             }
         }
-        if (place.on() && now - lastPlace >= placeDelay.d()) {
+        // one rotation fits in a movement packet: if breaking already uses it, placing waits for the next tick
+        if (place.on() && now - lastPlace >= placeDelay.d() && !(rotationUsed && placeRotate.on())) {
             lastPlace = now;
-            doPlace(target);
+            plannedBase = pickPlace(target, now);
+            if (plannedBase != null && placeRotate.on()) {
+                SilentRotation.lookAt(mc.player.getEyePos(), Vec3d.ofCenter(plannedBase).add(0, 0.5, 0));
+            }
         }
     }
 
-    private boolean doBreak(PlayerEntity target) {
+    /** The movement packet is out, so the server already has the rotation: now hit and place. */
+    public void afterMovement() {
+        if (mc.player == null || mc.interactionManager == null) return;
+        long now = System.currentTimeMillis();
+
+        if (plannedBreak != null) {
+            EndCrystalEntity crystal = plannedBreak;
+            plannedBreak = null;
+            if (crystal.isAlive()) {
+                mc.interactionManager.attackEntity(mc.player, crystal);
+                mc.player.swingHand(Hand.MAIN_HAND);
+                lastBreak = now;
+                attacked.put(crystal.getId(), now);
+            }
+        }
+        if (plannedBase != null) {
+            BlockPos base = plannedBase;
+            plannedBase = null;
+            Hand hand = plannedHand;
+            if (hand == null) {
+                if (previousSlot == -1) previousSlot = mc.player.getInventory().selectedSlot;
+                mc.player.getInventory().selectedSlot = plannedSlot;
+                hand = Hand.MAIN_HAND;
+            }
+            BlockHitResult hit = new BlockHitResult(Vec3d.ofCenter(base).add(0, 0.5, 0), Direction.UP, base, false);
+            ActionResult result = mc.interactionManager.interactBlock(mc.player, hand, hit);
+            if (result.isAccepted()) {
+                mc.player.swingHand(hand);
+                lastPlacedBase = base;
+                lastPlacedTime = now;
+            }
+        }
+    }
+
+    private EndCrystalEntity pickBreak(PlayerEntity target, long now) {
+        attacked.values().removeIf(t -> now - t > 1000);
         EndCrystalEntity best = null;
         float bestScore = -Float.MAX_VALUE;
         double r2 = breakRange.d() * breakRange.d();
         Vec3d eye = mc.player.getEyePos();
         for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof EndCrystalEntity crystal) || !crystal.isAlive()) continue;
+            Long hitAt = attacked.get(crystal.getId());
+            if (hitAt != null && now - hitAt < 300) continue; // already hit, the server has not removed it yet
             if (eye.squaredDistanceTo(crystal.getBoundingBox().getCenter()) > r2) continue;
             Vec3d pos = crystal.getPos();
             float dmg = damage(pos, target);
@@ -218,32 +259,27 @@ public class AutoCrystal extends Module {
                 best = crystal;
             }
         }
-        if (best == null) return false;
-        boolean rotated = breakRotate.on();
-        if (rotated) lookAt(best.getBoundingBox().getCenter());
-        mc.interactionManager.attackEntity(mc.player, best);
-        mc.player.swingHand(Hand.MAIN_HAND);
-        if (rotated) restoreRotation();
-        return true;
+        return best;
     }
 
     private record Candidate(BlockPos base, Vec3d crystalPos, float bound) {
     }
 
-    private void doPlace(PlayerEntity target) {
+    /** @return the obsidian/bedrock block to place on, and sets plannedHand / plannedSlot. */
+    private BlockPos pickPlace(PlayerEntity target, long now) {
         Hand hand = null;
         if (mc.player.getOffHandStack().isOf(Items.END_CRYSTAL)) hand = Hand.OFF_HAND;
         else if (mc.player.getMainHandStack().isOf(Items.END_CRYSTAL)) hand = Hand.MAIN_HAND;
         int crystalSlot = -1;
         if (hand == null) {
-            if (!autoSwitch.on()) return;
+            if (!autoSwitch.on()) return null;
             for (int i = 0; i < 9; i++) {
                 if (mc.player.getInventory().getStack(i).isOf(Items.END_CRYSTAL)) {
                     crystalSlot = i;
                     break;
                 }
             }
-            if (crystalSlot == -1) return;
+            if (crystalSlot == -1) return null;
         }
 
         Vec3d eye = mc.player.getEyePos();
@@ -258,6 +294,7 @@ public class AutoCrystal extends Module {
                     if (!state.isOf(Blocks.OBSIDIAN) && !state.isOf(Blocks.BEDROCK)) continue;
                     if (!mc.world.getBlockState(base.up()).isAir()) continue;
                     if (eye.distanceTo(Vec3d.ofCenter(base)) > pr) continue;
+                    if (base.equals(lastPlacedBase) && now - lastPlacedTime < 400) continue; // crystal is on its way
                     Vec3d crystalPos = new Vec3d(base.getX() + 0.5, base.getY() + 1.0, base.getZ() + 0.5);
                     float bound = upperBound(crystalPos, target);
                     if (bound < minDamage.d()) continue;
@@ -265,14 +302,14 @@ public class AutoCrystal extends Module {
                 }
             }
         }
-        if (candidates.isEmpty()) return;
+        if (candidates.isEmpty()) return null;
         candidates.sort(Comparator.comparingDouble((Candidate c) -> c.bound()).reversed());
 
         BlockPos bestBase = null;
         float bestScore = -Float.MAX_VALUE;
         int checked = 0;
         for (Candidate c : candidates) {
-            if (checked++ >= 8) break;
+            if (checked++ >= 6) break;
             BlockPos above = c.base().up();
             Box box = new Box(above.getX(), above.getY(), above.getZ(), above.getX() + 1, above.getY() + 2, above.getZ() + 1);
             if (!mc.world.getOtherEntities(null, box).isEmpty()) continue;
@@ -286,18 +323,9 @@ public class AutoCrystal extends Module {
                 bestBase = c.base();
             }
         }
-        if (bestBase == null) return;
-
-        if (hand == null) {
-            if (previousSlot == -1) previousSlot = mc.player.getInventory().selectedSlot;
-            mc.player.getInventory().selectedSlot = crystalSlot;
-            hand = Hand.MAIN_HAND;
-        }
-        BlockHitResult hit = new BlockHitResult(Vec3d.ofCenter(bestBase).add(0, 0.5, 0), Direction.UP, bestBase, false);
-        boolean rotated = placeRotate.on();
-        if (rotated) lookAt(hit.getPos());
-        ActionResult result = mc.interactionManager.interactBlock(mc.player, hand, hit);
-        if (result.isAccepted()) mc.player.swingHand(hand);
-        if (rotated) restoreRotation();
+        if (bestBase == null) return null;
+        plannedHand = hand;
+        plannedSlot = crystalSlot;
+        return bestBase;
     }
 }
