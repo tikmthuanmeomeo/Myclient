@@ -6,6 +6,8 @@ public abstract class Setting<T> {
     public String label;
     /** When set, this setting is shown inside the parent toggle and only while it is opened. */
     public BoolSetting parent;
+    /** Hidden settings are saved in the config but not shown in the GUI. */
+    public boolean hidden;
     protected T value;
 
     protected Setting(String name, T value) {

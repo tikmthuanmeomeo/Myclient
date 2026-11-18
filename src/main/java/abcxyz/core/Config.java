@@ -20,6 +20,13 @@ public final class Config {
         return FabricLoader.getInstance().getConfigDir().resolve("abcxyz.properties");
     }
 
+    /** Reads a saved value of a module; HudEdit (the old ModuleList) also reads what was saved under the old name. */
+    private static String prop(Properties p, Module m, String suffix) {
+        String v = p.getProperty(m.name + "." + suffix);
+        if (v == null && m.name.equals("HudEdit")) v = p.getProperty("ModuleList." + suffix);
+        return v;
+    }
+
     /** @return false when there was no config file yet (first start). */
     public static boolean load(ModuleManager manager) {
         Path path = file();
@@ -31,9 +38,9 @@ public final class Config {
             return false;
         }
         for (Module m : manager.modules) {
-            String enabled = p.getProperty(m.name + ".enabled");
+            String enabled = prop(p, m, "enabled");
             if (enabled != null) m.setEnabled(Boolean.parseBoolean(enabled), false);
-            String key = p.getProperty(m.name + ".key");
+            String key = prop(p, m, "key");
             if (key != null) {
                 try {
                     m.key = Integer.parseInt(key);
@@ -41,7 +48,7 @@ public final class Config {
                 }
             }
             for (Setting<?> s : m.settings) {
-                String v = p.getProperty(m.name + "." + s.name);
+                String v = prop(p, m, s.name);
                 if (v != null) s.load(v);
             }
         }

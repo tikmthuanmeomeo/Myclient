@@ -8,13 +8,14 @@ import abcxyz.module.combat.SafeAnchor;
 import abcxyz.module.combat.TriggerBot;
 import abcxyz.module.combat.Velocity;
 import abcxyz.module.misc.AutoRespawn;
+import abcxyz.module.misc.AutoShop;
 import abcxyz.module.misc.EasyPlace;
 import abcxyz.module.movement.Sprint;
 import abcxyz.module.render.ESP;
 import abcxyz.module.render.FullBright;
 import abcxyz.module.render.HandView;
 import abcxyz.module.render.HealthIndicator;
-import abcxyz.module.render.ModuleList;
+import abcxyz.module.render.HudEdit;
 import abcxyz.module.render.NoHurtCam;
 import abcxyz.module.render.Skybox;
 import abcxyz.module.render.Tracers;
@@ -50,12 +51,13 @@ public class ModuleManager {
         modules.add(new NoHurtCam());
         modules.add(new Skybox());
         modules.add(new HandView());
-        modules.add(new ModuleList());
+        modules.add(new HudEdit());
         modules.add(new AutoRespawn());
         modules.add(new EasyPlace());
+        modules.add(new AutoShop());
         boolean hadConfig = Config.load(this);
         if (!hadConfig) {
-            get(ModuleList.class).setEnabled(true, false);
+            get(HudEdit.class).setEnabled(true, false);
             get(HealthIndicator.class).setEnabled(true, false);
         }
     }

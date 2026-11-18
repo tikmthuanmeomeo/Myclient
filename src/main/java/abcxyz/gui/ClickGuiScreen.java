@@ -9,6 +9,7 @@ import abcxyz.core.Module;
 import abcxyz.core.ModeSetting;
 import abcxyz.core.NumSetting;
 import abcxyz.core.Setting;
+import abcxyz.module.render.HudEdit;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.util.InputUtil;
@@ -71,6 +72,7 @@ public class ClickGuiScreen extends Screen {
     private KeySetting listeningKey = null;
     private Hit dragging = null;
     private Category dragPanel = null;
+    private HudEdit.Element hudDrag = null;
     private int dragOffX, dragOffY;
     private long lastNs = 0L;
 
@@ -120,10 +122,14 @@ public class ClickGuiScreen extends Screen {
         return POSITIONS.computeIfAbsent(category, c -> new int[]{14 + c.ordinal() * (PANEL_W + 10), 14});
     }
 
+    private HudEdit hudEdit() {
+        return AbcxyzClient.modules == null ? null : AbcxyzClient.modules.get(HudEdit.class);
+    }
+
     private int extraHeight(Module m) {
         int rows = 1; // bind row
         for (Setting<?> s : m.settings) {
-            if (s.parent != null) continue;
+            if (s.parent != null || s.hidden) continue;
             rows++;
             if (s instanceof BoolSetting b && b.open) rows += b.children.size();
         }
@@ -149,6 +155,8 @@ public class ClickGuiScreen extends Screen {
         hits.clear();
         if (AbcxyzClient.modules == null) return;
 
+        HudEdit hud = hudEdit();
+        if (hud != null && hud.isEnabled()) hud.drawEditOverlay(context, mouseX, mouseY);
         for (Category category : Category.values()) drawPanel(context, category, mouseX, mouseY, dt);
         drawTooltip(context, mouseX, mouseY);
 
@@ -225,7 +233,7 @@ public class ClickGuiScreen extends Screen {
                 ctx.enableScissor(x, cy, x + PANEL_W, cy + drawn);
                 int sy = cy;
                 for (Setting<?> s : m.settings) {
-                    if (s.parent != null) continue;
+                    if (s.parent != null || s.hidden) continue;
                     sy = drawSetting(ctx, x, sy, m, s, 0, mx, my, dt, live, top, clipBottom, category);
                     if (s instanceof BoolSetting b && b.open) {
                         for (Setting<?> child : b.children) {
@@ -378,11 +386,25 @@ public class ClickGuiScreen extends Screen {
             }
             return true;
         }
+        HudEdit hud = hudEdit();
+        if (hud != null && hud.isEnabled() && button == 0) {
+            HudEdit.Element element = hud.elementAt(mouseX, mouseY);
+            if (element != null) {
+                hudDrag = element;
+                hud.beginDrag(element, mouseX, mouseY);
+                return true;
+            }
+        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (hudDrag != null) {
+            HudEdit hud = hudEdit();
+            if (hud != null) hud.drag(mouseX, mouseY, width, height);
+            return true;
+        }
         if (dragPanel != null) {
             int[] p = pos(dragPanel);
             p[0] = Math.max(0, Math.min(width - PANEL_W, (int) mouseX - dragOffX));
@@ -398,7 +420,10 @@ public class ClickGuiScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (dragging != null || dragPanel != null) {
+        if (dragging != null || dragPanel != null || hudDrag != null) {
+            HudEdit hud = hudEdit();
+            if (hud != null) hud.endDrag();
+            hudDrag = null;
             dragging = null;
             dragPanel = null;
             Config.save();
