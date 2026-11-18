@@ -117,6 +117,7 @@ public class Skybox extends Module {
 
         BuiltBuffer builtBuffer = b.endNullable();
         if (builtBuffer != null) BufferRenderer.drawWithGlobalProgram(builtBuffer);
+        if (saturn.on()) drawHalo(m, radius - 3.0f);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
     }
@@ -160,55 +161,192 @@ public class Skybox extends Module {
         }
     }
 
-    private void drawSaturn(BufferBuilder b, Matrix4f m, float dist) {
-        // south-west = between south (+Z) and west (-X): yaw 45 degrees; 28 degrees above the horizon
+    // ---------------------------------------------------------------- Saturn
+    // Geometry and colors are built once, in units of the planet radius, and only moved/scaled each frame.
+
+    private float[] pPos, rPos;
+    private int[] pCol, rCol;
+    private final Vector3f toPlanet = new Vector3f();
+    private int pIndex = 0;
+
+    private static float smoothstep(float a, float b, float x) {
+        float t = Math.max(0f, Math.min(1f, (x - a) / (b - a)));
+        return t * t * (3f - 2f * t);
+    }
+
+    private static float hash(int n) {
+        int x = n * 374761393 + 668265263;
+        x = (x ^ (x >>> 13)) * 1274126177;
+        x ^= x >>> 16;
+        return (x & 0xFFFFFF) / 16777215f;
+    }
+
+    private static float vnoise(float x) {
+        int i = (int) Math.floor(x);
+        float f = x - i;
+        f = f * f * (3f - 2f * f);
+        return hash(i) * (1f - f) + hash(i + 1) * f;
+    }
+
+    /** Cloud band color for a value 0..1 (dark tan to pale cream). */
+    private static int palette(float f) {
+        int[] stops = {0xA98A5C, 0xCBB07A, 0xE4D2A2, 0xF1E5C4};
+        float x = Math.max(0f, Math.min(0.9999f, f)) * (stops.length - 1);
+        int i = (int) x;
+        return lerpColor(stops[i], stops[i + 1], x - i);
+    }
+
+    /** How solid the rings are at a distance r (in planet radii): C ring, B ring, Cassini gap, A ring, Encke gap. */
+    private static float ringDensity(float r) {
+        float fine = 0.75f + 0.25f * vnoise(r * 70f) + 0.1f * (float) Math.sin(r * 160f);
+        float d;
+        if (r < 1.22f || r > 2.36f) return 0f;
+        if (r < 1.52f) d = 0.16f + 0.1f * vnoise(r * 30f);
+        else if (r < 1.95f) d = 0.72f + 0.22f * smoothstep(1.52f, 1.8f, r);
+        else if (r < 2.03f) d = 0.05f;
+        else if (r < 2.26f) d = 0.5f;
+        else if (r < 2.29f) d = 0.08f;
+        else d = 0.32f;
+        float edge = smoothstep(1.22f, 1.3f, r) * (1f - smoothstep(2.3f, 2.36f, r));
+        return Math.max(0f, Math.min(1f, d * fine * edge));
+    }
+
+    private static int ringColor(float r) {
+        if (r < 1.52f) return 0xA89A7E;
+        if (r < 1.95f) return lerpColor(0xCDB88C, 0xEBDDB4, (r - 1.52f) / 0.43f);
+        return 0xD8C69C;
+    }
+
+    private void buildSaturn() {
         double az = Math.toRadians(45.0), el = Math.toRadians(28.0);
-        Vector3f toPlanet = new Vector3f((float) (-Math.sin(az) * Math.cos(el)), (float) Math.sin(el), (float) (Math.cos(az) * Math.cos(el)));
-        Vector3f c = new Vector3f(toPlanet).mul(dist);
-        float rp = (float) (Math.tan(Math.toRadians(saturnSize.d() / 2.0)) * dist);
-        Vector3f light = new Vector3f(0.8f, 0.5f, -0.25f).normalize();
-
-        // planet: horizontal bands, lit from one side
-        final int lat = 24, lon = 48;
-        for (int i = 0; i < lat; i++) {
-            double a0 = Math.PI * (-0.5 + (double) i / lat), a1 = Math.PI * (-0.5 + (double) (i + 1) / lat);
-            int band = Math.min(BANDS.length - 1, (int) ((Math.sin((a0 + a1) / 2) * 0.5 + 0.5) * BANDS.length));
-            for (int j = 0; j < lon; j++) {
-                double t0 = Math.PI * 2 * j / lon, t1 = Math.PI * 2 * (j + 1) / lon;
-                double[][] corners = {{a0, t0}, {a1, t0}, {a1, t1}, {a0, t1}};
-                for (double[] k : corners) {
-                    float nx = (float) (Math.cos(k[0]) * Math.cos(k[1])), ny = (float) Math.sin(k[0]), nz = (float) (Math.cos(k[0]) * Math.sin(k[1]));
-                    float s = 0.22f + 0.78f * Math.max(0f, nx * light.x + ny * light.y + nz * light.z);
-                    vtx(b, m, c.x + nx * rp, c.y + ny * rp, c.z + nz * rp, shade(BANDS[band], s, 255));
-                }
-            }
-        }
-
-        // ring: in a plane around the planet, tilted a bit on screen; the Cassini gap is left empty
+        toPlanet.set((float) (-Math.sin(az) * Math.cos(el)), (float) Math.sin(el), (float) (Math.cos(az) * Math.cos(el)));
         Vector3f up = new Vector3f(0f, 1f, 0f);
         float theta = (float) Math.toRadians(20.0);
+        // the planet's axis, which is also the normal of the ring plane: "up" turned a bit around the view axis
         Vector3f n = new Vector3f(up).mul((float) Math.cos(theta))
                 .add(new Vector3f(toPlanet).cross(up).mul((float) Math.sin(theta)))
                 .add(new Vector3f(toPlanet).mul(toPlanet.dot(up) * (1f - (float) Math.cos(theta)))).normalize();
         Vector3f u = new Vector3f(n).cross(toPlanet).normalize();
         Vector3f v = new Vector3f(n).cross(u).normalize();
-        float[][] rings = {{1.35f, 1.62f, 0xC8B48A, 150}, {1.62f, 1.96f, 0xE2CFA0, 225}, {2.06f, 2.42f, 0xD2BD90, 165}};
-        final int seg = 96;
-        for (float[] ring : rings) {
-            int col = (int) ring[2];
-            int alpha = (int) ring[3];
-            for (int j = 0; j < seg; j++) {
-                double t0 = Math.PI * 2 * j / seg, t1 = Math.PI * 2 * (j + 1) / seg;
-                float ri = ring[0] * rp, ro = ring[1] * rp;
-                double[][] pts = {{ri, t0}, {ro, t0}, {ro, t1}, {ri, t1}};
-                for (double[] p : pts) {
-                    double cs = Math.cos(p[1]), sn = Math.sin(p[1]);
-                    double x = c.x + (u.x * cs + v.x * sn) * p[0];
-                    double y = c.y + (u.y * cs + v.y * sn) * p[0];
-                    double z = c.z + (u.z * cs + v.z * sn) * p[0];
-                    vtx(b, m, x, y, z, (alpha << 24) | col);
+        Vector3f w = new Vector3f(up).cross(toPlanet).normalize();
+        Vector3f light = new Vector3f(toPlanet).mul(-0.55f).add(new Vector3f(w).mul(0.8f)).add(0f, 0.3f, 0f).normalize();
+
+        final int lat = 72, lon = 96;
+        pPos = new float[lat * lon * 4 * 3];
+        pCol = new int[lat * lon * 4];
+        pIndex = 0;
+        for (int i = 0; i < lat; i++) {
+            double a0 = Math.PI * (-0.5 + (double) i / lat), a1 = Math.PI * (-0.5 + (double) (i + 1) / lat);
+            for (int j = 0; j < lon; j++) {
+                double t0 = Math.PI * 2 * j / lon, t1 = Math.PI * 2 * (j + 1) / lon;
+                planetVertex(a0, t0, u, v, n, light);
+                planetVertex(a1, t0, u, v, n, light);
+                planetVertex(a1, t1, u, v, n, light);
+                planetVertex(a0, t1, u, v, n, light);
+            }
+        }
+
+        final int radial = 40, ang = 120;
+        rPos = new float[radial * ang * 4 * 3];
+        rCol = new int[radial * ang * 4];
+        int k = 0;
+        for (int i = 0; i < radial; i++) {
+            float r0 = 1.22f + (2.36f - 1.22f) * i / radial, r1 = 1.22f + (2.36f - 1.22f) * (i + 1) / radial;
+            for (int j = 0; j < ang; j++) {
+                double t0 = Math.PI * 2 * j / ang, t1 = Math.PI * 2 * (j + 1) / ang;
+                float[][] corner = {{r0, (float) t0}, {r1, (float) t0}, {r1, (float) t1}, {r0, (float) t1}};
+                for (float[] cv : corner) {
+                    float cs = (float) Math.cos(cv[1]), sn = (float) Math.sin(cv[1]);
+                    float x = (u.x * cs + v.x * sn) * cv[0], y = (u.y * cs + v.y * sn) * cv[0], z = (u.z * cs + v.z * sn) * cv[0];
+                    rPos[k * 3] = x;
+                    rPos[k * 3 + 1] = y;
+                    rPos[k * 3 + 2] = z;
+                    float mid = (r0 + r1) / 2f;
+                    // the planet throws a shadow on the ring (soft edge)
+                    float proj = -(x * light.x + y * light.y + z * light.z);
+                    float shadow = 1f;
+                    if (proj > 0f) {
+                        float px = -x - light.x * proj, py = -y - light.y * proj, pz = -z - light.z * proj;
+                        shadow = smoothstep(0.95f, 1.05f, (float) Math.sqrt(px * px + py * py + pz * pz));
+                    }
+                    float lit = 0.1f + 0.9f * shadow;
+                    int alpha = (int) (ringDensity(mid) * 0.95f * 255f);
+                    rCol[k++] = shade(ringColor(mid), lit, alpha);
                 }
             }
         }
+    }
+
+    private void planetVertex(double a, double t, Vector3f u, Vector3f v, Vector3f n, Vector3f light) {
+        float ca = (float) Math.cos(a), sa = (float) Math.sin(a), ct = (float) Math.cos(t), st = (float) Math.sin(t);
+        float nx = u.x * ca * ct + v.x * ca * st + n.x * sa;
+        float ny = u.y * ca * ct + v.y * ca * st + n.y * sa;
+        float nz = u.z * ca * ct + v.z * ca * st + n.z * sa;
+        // Saturn is slightly flattened at the poles
+        float px = nx - n.x * sa * 0.1f, py = ny - n.y * sa * 0.1f, pz = nz - n.z * sa * 0.1f;
+        pPos[pIndex * 3] = px;
+        pPos[pIndex * 3 + 1] = py;
+        pPos[pIndex * 3 + 2] = pz;
+
+        // cloud bands with a little turbulence, greyer towards the poles
+        float la = (float) a, lt = (float) t;
+        float f = 0.5f + 0.5f * (0.5f * (float) Math.sin(la * 7 + 0.7) + 0.3f * (float) Math.sin(la * 17 + 2.1) + 0.2f * (float) Math.sin(la * 31 + 4.0));
+        f += (vnoise(la * 45f + (float) Math.sin(lt * 3.0) * 2f) - 0.5f) * 0.16f;
+        int base = palette(f);
+        base = lerpColor(base, 0x9AA0A6, smoothstep(1.0f, 1.45f, Math.abs(la)) * 0.55f);
+
+        // soft terminator, darker towards the edge of the disc, and the shadow of the rings on the planet
+        float nl = nx * light.x + ny * light.y + nz * light.z;
+        float term = smoothstep(-0.08f, 0.5f, nl);
+        float mu = Math.max(0f, -(nx * toPlanet.x + ny * toPlanet.y + nz * toPlanet.z));
+        float limb = 0.5f + 0.5f * (float) Math.sqrt(mu);
+        float ringShadow = 0f;
+        float denom = light.dot(n);
+        if (nl > 0f && Math.abs(denom) > 1.0e-3f) {
+            float t0 = -(px * n.x + py * n.y + pz * n.z) / denom;
+            if (t0 > 0f) {
+                float hx = px + light.x * t0, hy = py + light.y * t0, hz = pz + light.z * t0;
+                ringShadow = ringDensity((float) Math.sqrt(hx * hx + hy * hy + hz * hz));
+            }
+        }
+        float s = 0.04f + 0.96f * term * limb * (1f - 0.8f * ringShadow);
+        pCol[pIndex++] = shade(base, s, 255);
+    }
+
+    private void drawSaturn(BufferBuilder b, Matrix4f m, float dist) {
+        if (pPos == null) buildSaturn();
+        float rp = (float) (Math.tan(Math.toRadians(saturnSize.d() / 2.0)) * dist);
+        float cx = toPlanet.x * dist, cy = toPlanet.y * dist, cz = toPlanet.z * dist;
+        for (int i = 0; i < pCol.length; i++) {
+            vtx(b, m, cx + pPos[i * 3] * rp, cy + pPos[i * 3 + 1] * rp, cz + pPos[i * 3 + 2] * rp, pCol[i]);
+        }
+        for (int i = 0; i < rCol.length; i++) {
+            vtx(b, m, cx + rPos[i * 3] * rp, cy + rPos[i * 3 + 1] * rp, cz + rPos[i * 3 + 2] * rp, rCol[i]);
+        }
+    }
+
+    /** A faint glow just around the planet's edge. Drawn after everything else, without writing depth. */
+    private void drawHalo(Matrix4f m, float dist) {
+        float rp = (float) (Math.tan(Math.toRadians(saturnSize.d() / 2.0)) * dist);
+        Vector3f c = new Vector3f(toPlanet).mul(dist);
+        Vector3f p1 = new Vector3f(0f, 1f, 0f).cross(toPlanet).normalize();
+        Vector3f p2 = new Vector3f(toPlanet).cross(p1).normalize();
+        RenderSystem.depthMask(false);
+        BufferBuilder b = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+        final int seg = 48;
+        for (int j = 0; j < seg; j++) {
+            double t0 = Math.PI * 2 * j / seg, t1 = Math.PI * 2 * (j + 1) / seg;
+            double[][] pts = {{0.97, t0, 80}, {1.32, t0, 0}, {1.32, t1, 0}, {0.97, t1, 80}};
+            for (double[] pt : pts) {
+                double cs = Math.cos(pt[1]), sn = Math.sin(pt[1]);
+                double x = c.x + (p1.x * cs + p2.x * sn) * pt[0] * rp;
+                double y = c.y + (p1.y * cs + p2.y * sn) * pt[0] * rp;
+                double z = c.z + (p1.z * cs + p2.z * sn) * pt[0] * rp;
+                vtx(b, m, x, y, z, ((int) pt[2] << 24) | 0xF3DDA6);
+            }
+        }
+        BuiltBuffer halo = b.endNullable();
+        if (halo != null) BufferRenderer.drawWithGlobalProgram(halo);
+        RenderSystem.depthMask(true);
     }
 }
