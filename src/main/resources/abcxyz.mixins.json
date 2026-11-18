@@ -7,7 +7,9 @@
     "EntityMixin",
     "ClientPlayNetworkHandlerMixin",
     "GameRendererMixin",
-    "ClientPlayerEntityMixin"
+    "ClientPlayerEntityMixin",
+    "HeldItemRendererMixin",
+    "LivingEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

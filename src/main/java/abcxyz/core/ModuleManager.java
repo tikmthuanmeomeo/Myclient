@@ -12,6 +12,7 @@ import abcxyz.module.misc.EasyPlace;
 import abcxyz.module.movement.Sprint;
 import abcxyz.module.render.ESP;
 import abcxyz.module.render.FullBright;
+import abcxyz.module.render.HandView;
 import abcxyz.module.render.HealthIndicator;
 import abcxyz.module.render.ModuleList;
 import abcxyz.module.render.NoHurtCam;
@@ -48,6 +49,7 @@ public class ModuleManager {
         modules.add(new FullBright());
         modules.add(new NoHurtCam());
         modules.add(new Skybox());
+        modules.add(new HandView());
         modules.add(new ModuleList());
         modules.add(new AutoRespawn());
         modules.add(new EasyPlace());
