@@ -5,7 +5,6 @@ import abcxyz.core.Category;
 import abcxyz.core.Module;
 import abcxyz.core.NumSetting;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -17,15 +16,24 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Buys Totems of Undying from the server's GUI shop in a loop until your inventory is full.
+ * Buys Totems of Undying from the server's GUI shop until your inventory is full, then turns itself off.
  * /shop open gear -> click the totem -> click the confirm button -> repeat.
- * Everything is tick based (no sleeping). It turns itself off and closes the screen when the main inventory
- * (slots 0-35) has no empty slot left, when the server says you don't have enough money, when the shop does not
- * open within 3 seconds, or when purchases stop going through.
+ *
+ * - The shop window is never shown (HideGui): MinecraftClientMixin drops the screen but the window itself stays
+ *   open, so clicks still work and you can keep playing/moving while it buys.
+ * - If the server closes the shop after a purchase it is opened again with the command; if the window stays open
+ *   the next totem is bought right away (ReopenShop forces the command after every purchase).
+ * - Nothing blocks the game thread: it is a state machine run every frame with millisecond timers, so a step
+ *   happens as soon as the server answered instead of waiting for the next tick.
+ * - It stops (and closes the window) when the main inventory (slots 0-35) is full, when the server says you don't
+ *   have enough money, when the shop does not open (3 tries), or when no totem was bought for 10 seconds.
+ *   The reason is written in the chat.
  */
 public class AutoShop extends Module {
     private static final String COMMAND = "shop open gear";
-    private static final int TIMEOUT_TICKS = 60; // 3 seconds
+    private static final long OPEN_TIMEOUT_MS = 3000;
+    private static final int OPEN_ATTEMPTS = 3;
+    private static final long STALL_MS = 10000;
     private static final List<String> NO_MONEY = List.of("not enough", "insufficient", "can't afford", "cannot afford",
             "don't have enough", "do not have enough", "không đủ tiền", "khong du tien", "không đủ xu", "thiếu tiền");
     private static final List<String> CONFIRM_WORDS = List.of("confirm", "accept", "purchase", "xác nhận", "xac nhan",
@@ -35,24 +43,28 @@ public class AutoShop extends Module {
             Items.LIME_WOOL, Items.GREEN_WOOL, Items.LIME_TERRACOTTA, Items.GREEN_TERRACOTTA, Items.EMERALD_BLOCK,
             Items.EMERALD, Items.LIME_DYE, Items.GREEN_DYE);
 
-    private final NumSetting clickDelay = add(new NumSetting("ClickDelay", 150, 50, 1000, 10));
-    private final BoolSetting reopenShop = add(new BoolSetting("ReopenShop", true));
+    private final NumSetting clickDelay = add(new NumSetting("ClickDelay", 50, 0, 1000, 10));
+    private final BoolSetting hideGui = add(new BoolSetting("HideGui", true));
+    private final BoolSetting reopenShop = add(new BoolSetting("ReopenShop", false));
     private final NumSetting confirmSlot = add(new NumSetting("ConfirmSlot", -1, -1, 53, 1));
 
     private enum State {OPEN_SHOP, WAIT_SHOP, SELECT_ITEM, WAIT_CONFIRM, CONFIRM, WAIT_RESULT}
 
     private State state = State.OPEN_SHOP;
-    private int wait = 0;
-    private int timeout = 0;
+    private long nextAt = 0L;
+    private long stateSince = 0L;
+    private int openAttempts = 0;
     private int syncIdAtClick = -1;
     private int hashAtClick = 0;
+    private int totemsAtClick = 0;
     private int lastTotems = 0;
-    private int failedPurchases = 0;
+    private long lastProgress = 0L;
 
     public AutoShop() {
         super("AutoShop", "Buys totems from the /shop until your inventory is full", Category.Misc);
         clickDelay.label = "Click delay (ms)";
-        reopenShop.label = "Reopen shop";
+        hideGui.label = "Hide GUI";
+        reopenShop.label = "Reopen every time";
         confirmSlot.label = "Confirm slot";
         // messages from the server (system messages, and chat that is not signed by a player)
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> onMessage(message.getString()));
@@ -66,23 +78,24 @@ public class AutoShop extends Module {
         return state.name();
     }
 
-    @Override
-    public void onEnable() {
-        state = State.OPEN_SHOP;
-        wait = 0;
-        timeout = 0;
-        failedPurchases = 0;
-        lastTotems = mc.player == null ? 0 : countTotems();
+    /** True while the shop window must not be shown on screen (used by MinecraftClientMixin). */
+    public boolean hidesGui() {
+        return isEnabled() && hideGui.on();
     }
 
     @Override
-    public void onDisable() {
-        wait = 0;
+    public void onEnable() {
+        state = State.OPEN_SHOP;
+        nextAt = 0L;
+        stateSince = System.currentTimeMillis();
+        openAttempts = 0;
+        lastTotems = mc.player == null ? 0 : countTotems();
+        lastProgress = System.currentTimeMillis();
     }
 
     private void stop(String reason) {
         if (mc.player != null) {
-            mc.player.sendMessage(Text.literal("AutoShop: " + reason), true);
+            mc.player.sendMessage(Text.literal("\u00a7e[AutoShop] \u00a7f" + reason), false);
             mc.player.closeHandledScreen();
         }
         setEnabled(false, true);
@@ -101,10 +114,6 @@ public class AutoShop extends Module {
 
     // ---------------------------------------------------------------- helpers
 
-    private int delayTicks() {
-        return Math.max(1, (int) Math.round(clickDelay.d() / 50.0));
-    }
-
     private boolean inventoryFull() {
         for (int i = 0; i < 36; i++) {
             if (mc.player.getInventory().getStack(i).isEmpty()) return false;
@@ -121,20 +130,19 @@ public class AutoShop extends Module {
         return count;
     }
 
-    /** The open shop/confirm window, or null when no chest-like window is open. */
+    /** The open chest-like window (it does not need to be on screen), or null. */
     private GenericContainerScreenHandler container() {
-        if (!(mc.currentScreen instanceof GenericContainerScreen)) return null;
+        if (mc.player.currentScreenHandler == mc.player.playerScreenHandler) return null;
         if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler handler) return handler;
         return null;
     }
 
     private static int containerSize(GenericContainerScreenHandler handler) {
-        return handler.getRows() * 9;
+        return Math.min(handler.getRows() * 9, handler.slots.size());
     }
 
     private boolean hasContents(GenericContainerScreenHandler handler) {
-        int size = Math.min(containerSize(handler), handler.slots.size());
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < containerSize(handler); i++) {
             if (!handler.getSlot(i).getStack().isEmpty()) return true;
         }
         return false;
@@ -142,8 +150,7 @@ public class AutoShop extends Module {
 
     private int contentHash(GenericContainerScreenHandler handler) {
         int hash = 1;
-        int size = Math.min(containerSize(handler), handler.slots.size());
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < containerSize(handler); i++) {
             ItemStack stack = handler.getSlot(i).getStack();
             hash = 31 * hash + (stack.isEmpty() ? 0 : stack.getItem().hashCode() * 17 + stack.getCount());
             hash = 31 * hash + (stack.isEmpty() ? 0 : stack.getName().getString().hashCode());
@@ -152,8 +159,7 @@ public class AutoShop extends Module {
     }
 
     private int findTotemSlot(GenericContainerScreenHandler handler) {
-        int size = Math.min(containerSize(handler), handler.slots.size());
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < containerSize(handler); i++) {
             if (handler.getSlot(i).getStack().isOf(Items.TOTEM_OF_UNDYING)) return i;
         }
         return -1;
@@ -161,7 +167,7 @@ public class AutoShop extends Module {
 
     /** The confirm button: the manual slot, or the first item named "confirm"..., or the first green item. */
     private int findConfirmSlot(GenericContainerScreenHandler handler) {
-        int size = Math.min(containerSize(handler), handler.slots.size());
+        int size = containerSize(handler);
         int manual = confirmSlot.i();
         if (manual >= 0) {
             return manual < size && !handler.getSlot(manual).getStack().isEmpty() ? manual : -1;
@@ -186,112 +192,118 @@ public class AutoShop extends Module {
         mc.interactionManager.clickSlot(handler.syncId, slot, 0, SlotActionType.PICKUP, mc.player);
     }
 
-    // ---------------------------------------------------------------- state machine
+    private void go(State next, long now) {
+        state = next;
+        stateSince = now;
+        nextAt = now + clickDelay.i();
+    }
+
+    // ---------------------------------------------------------------- state machine (every frame)
 
     @Override
-    public void onTick() {
+    public void onFrame() {
         if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
+        long now = System.currentTimeMillis();
+
         if (inventoryFull()) {
-            stop("inventory is full");
+            stop("inventory is full, done");
             return;
         }
-        if (wait > 0) {
-            wait--;
+        int totems = countTotems();
+        if (totems > lastTotems) lastProgress = now;
+        lastTotems = totems;
+        if (now - lastProgress > STALL_MS) {
+            stop("no totem was bought for 10 seconds (state " + state.name() + ")");
             return;
         }
+        if (now < nextAt) return;
+
+        GenericContainerScreenHandler handler = container();
         switch (state) {
             case OPEN_SHOP -> {
-                if (mc.player.currentScreenHandler != mc.player.playerScreenHandler) {
-                    mc.player.closeHandledScreen(); // close whatever is still open first
-                    wait = 2;
+                if (handler != null && findTotemSlot(handler) != -1) { // the shop is already open
+                    go(State.SELECT_ITEM, now);
+                    return;
+                }
+                if (handler != null) { // some other window: close it first
+                    mc.player.closeHandledScreen();
+                    nextAt = now + Math.max(50, clickDelay.i());
                     return;
                 }
                 mc.player.networkHandler.sendChatCommand(COMMAND);
                 state = State.WAIT_SHOP;
-                timeout = 0;
+                stateSince = now;
             }
             case WAIT_SHOP -> {
-                GenericContainerScreenHandler handler = container();
                 if (handler != null && hasContents(handler)) {
-                    state = State.SELECT_ITEM;
-                    timeout = 0;
-                    wait = delayTicks();
-                } else if (++timeout > TIMEOUT_TICKS) {
-                    stop("the shop did not open in 3 seconds");
+                    openAttempts = 0;
+                    go(State.SELECT_ITEM, now);
+                } else if (now - stateSince > OPEN_TIMEOUT_MS) {
+                    if (++openAttempts >= OPEN_ATTEMPTS) {
+                        stop("the shop did not open");
+                    } else { // maybe a command cooldown: try again
+                        state = State.OPEN_SHOP;
+                        stateSince = now;
+                        nextAt = now + 500;
+                    }
                 }
             }
             case SELECT_ITEM -> {
-                GenericContainerScreenHandler handler = container();
-                if (handler == null) { // the window is gone: open the shop again
-                    state = State.OPEN_SHOP;
-                    wait = delayTicks();
+                if (handler == null) {
+                    go(State.OPEN_SHOP, now);
                     return;
                 }
                 int slot = findTotemSlot(handler);
                 if (slot == -1) {
-                    if (++timeout > TIMEOUT_TICKS) stop("no totem found in the shop window");
+                    if (now - stateSince > OPEN_TIMEOUT_MS) stop("no totem found in the shop window");
+                    return;
+                }
+                syncIdAtClick = handler.syncId;
+                hashAtClick = contentHash(handler);
+                totemsAtClick = totems;
+                click(handler, slot);
+                go(State.WAIT_CONFIRM, now);
+            }
+            case WAIT_CONFIRM -> {
+                if (handler == null || totems > totemsAtClick) { // closed or bought straight away
+                    afterPurchase(now);
+                } else if (handler.syncId != syncIdAtClick || contentHash(handler) != hashAtClick) {
+                    go(State.CONFIRM, now);
+                } else if (now - stateSince > 2000) {
+                    afterPurchase(now); // nothing happened: try again
+                }
+            }
+            case CONFIRM -> {
+                if (handler == null || totems > totemsAtClick) {
+                    afterPurchase(now);
+                    return;
+                }
+                int slot = findConfirmSlot(handler);
+                if (slot == -1) {
+                    if (now - stateSince > OPEN_TIMEOUT_MS) stop("confirm button not found (set Confirm slot)");
                     return;
                 }
                 syncIdAtClick = handler.syncId;
                 hashAtClick = contentHash(handler);
                 click(handler, slot);
-                state = State.WAIT_CONFIRM;
-                timeout = 0;
-                wait = delayTicks();
+                go(State.WAIT_RESULT, now);
             }
-            case WAIT_CONFIRM -> {
-                GenericContainerScreenHandler handler = container();
-                if (handler == null) { // window closed by the click: it was a direct purchase
-                    afterPurchase();
-                    return;
-                }
-                if (handler.syncId != syncIdAtClick || contentHash(handler) != hashAtClick) {
-                    state = State.CONFIRM;
-                    timeout = 0;
-                    wait = delayTicks();
-                } else if (++timeout > TIMEOUT_TICKS) {
-                    afterPurchase(); // nothing changed: there is no confirm window, the click was the purchase
+            case WAIT_RESULT -> {
+                if (handler == null || totems > totemsAtClick || handler.syncId != syncIdAtClick
+                        || contentHash(handler) != hashAtClick || now - stateSince > 1000) {
+                    afterPurchase(now);
                 }
             }
-            case CONFIRM -> {
-                GenericContainerScreenHandler handler = container();
-                if (handler == null) {
-                    afterPurchase();
-                    return;
-                }
-                int slot = findConfirmSlot(handler);
-                if (slot == -1) {
-                    if (++timeout > TIMEOUT_TICKS) stop("confirm button not found (set Confirm slot)");
-                    return;
-                }
-                click(handler, slot);
-                state = State.WAIT_RESULT;
-                wait = delayTicks() + 2; // let the inventory update
-            }
-            case WAIT_RESULT -> afterPurchase();
         }
     }
 
-    private void afterPurchase() {
-        int totems = countTotems();
-        if (totems > lastTotems) failedPurchases = 0;
-        else failedPurchases++;
-        lastTotems = totems;
-        if (inventoryFull()) {
-            stop("inventory is full");
-            return;
+    private void afterPurchase(long now) {
+        GenericContainerScreenHandler handler = container();
+        if (reopenShop.on() && handler != null) {
+            mc.player.closeHandledScreen();
+            handler = null;
         }
-        if (failedPurchases >= 3) {
-            stop("purchases are not going through");
-            return;
-        }
-        if (reopenShop.on()) {
-            if (container() != null) mc.player.closeHandledScreen();
-            state = State.OPEN_SHOP;
-        } else {
-            state = State.SELECT_ITEM;
-        }
-        timeout = 0;
-        wait = delayTicks();
+        // the window is still open and shows the shop: buy the next one right away, else open the shop again
+        go(handler != null && findTotemSlot(handler) != -1 ? State.SELECT_ITEM : State.OPEN_SHOP, now);
     }
 }
