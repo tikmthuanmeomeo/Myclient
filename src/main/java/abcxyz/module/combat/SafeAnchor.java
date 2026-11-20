@@ -2,6 +2,7 @@ package abcxyz.module.combat;
 
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
+import abcxyz.core.Explosions;
 import abcxyz.core.KeySetting;
 import abcxyz.core.ModeSetting;
 import abcxyz.core.Module;
@@ -24,9 +25,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -35,8 +36,10 @@ import java.util.function.Predicate;
  *    player within Target range (on the block face you look at when nobody is around), Mode Crosshair = always on
  *    the block face you are looking at,
  * 1) with Rotate it turns to the anchor under the crosshair, or to the closest one within Range,
- * 2) places a shield block next to the anchor on the side that faces you,
- * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone,
+ * 2) places shield blocks around the anchor until the damage the explosion would do to you (estimated like vanilla,
+ *    with exposure rays, armor and resistance) is at most "Max self damage",
+ * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone, only while the estimated damage
+ *    to you is at most "Max self damage" (and never when it would kill you),
  * 5) "Block after": places a block where the anchor was (Where = Spot) or on top of that spot (Where = Above).
  * It does nothing in the Nether, because anchors don't explode there. Set ActivateKey to None to always be active.
  */
@@ -44,6 +47,7 @@ public class SafeAnchor extends Module {
     private final NumSetting range = add(new NumSetting("Range", 4.5, 1, 6, 0.1));
     private final NumSetting delay = add(new NumSetting("Delay", 50, 0, 500, 10));
     private final ModeSetting shield = add(new ModeSetting("Shield", "Obsidian", "Obsidian", "AnyBlock", "Off"));
+    private final NumSetting maxSelf = add(new NumSetting("MaxSelfDamage", 2.0, 0, 36, 0.5));
     private final ModeSetting top = add(new ModeSetting("Top", "Spot", "Spot", "Above"));
     private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
     private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
@@ -71,6 +75,7 @@ public class SafeAnchor extends Module {
     public SafeAnchor() {
         super("SafeAnchor", "Hold the key: look at the anchor, shield, charge and explode it safely", Category.Combat);
         activateKey.label = "Activate key";
+        maxSelf.label = "Max self damage";
         placeAfter.label = "Block after";
         top.label = "Where";
         targetRange.label = "Target range";
@@ -190,45 +195,64 @@ public class SafeAnchor extends Module {
         return new BlockHitResult(pos, side, anchor, false);
     }
 
-    /** True when a solid block sits between the explosion (the anchor) and both the eyes and the middle of the player. */
-    private boolean isShielded(BlockPos anchor) {
-        Vec3d center = Vec3d.ofCenter(anchor);
-        Vec3d[] points = {mc.player.getEyePos(), mc.player.getPos().add(0, mc.player.getHeight() / 2.0, 0)};
-        for (Vec3d point : points) {
-            Vec3d dir = point.subtract(center);
-            if (dir.lengthSquared() < 1.0e-4) return false;
-            Vec3d start = center.add(dir.normalize().multiply(0.9));
-            if (start.squaredDistanceTo(center) >= dir.lengthSquared()) return false;
-            HitResult hit = mc.world.raycast(new RaycastContext(start, point,
-                    RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, mc.player));
-            if (hit.getType() == HitResult.Type.MISS) return false;
-        }
-        return true;
+    /** Damage the explosion of this anchor would deal to you, with the given extra blocks planned around it. */
+    private float selfDamage(BlockPos anchor, List<Box> extra) {
+        return Explosions.damage(Vec3d.ofCenter(anchor), Explosions.ANCHOR_POWER, mc.player, anchor, extra);
     }
 
-    private boolean placeShield(BlockPos anchor) {
-        int slot = findBlockSlot(anchor);
-        if (slot == -1) return false;
+    /** A click that places a block in the cell against a solid neighbour (not against a charged anchor: that would blow it up). */
+    private BlockHitResult supportClick(BlockPos cell, BlockPos anchor, boolean charged) {
+        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
+        for (Direction d : order) {
+            BlockPos support = cell.offset(d);
+            if (mc.world.getBlockState(support).isReplaceable()) continue;
+            if (charged && support.equals(anchor)) continue;
+            Direction clicked = d.getOpposite();
+            Vec3d hitPos = Vec3d.ofCenter(support).add(clicked.getOffsetX() * 0.5, clicked.getOffsetY() * 0.5, clicked.getOffsetZ() * 0.5);
+            return new BlockHitResult(hitPos, clicked, support, false);
+        }
+        return null;
+    }
 
+    /**
+     * Places the one block around the anchor (all 26 cells, diagonals too) that lowers the damage to you the most.
+     *
+     * @return 0 = placed, 1 = no shield block in the hotbar, 2 = no spot would lower the damage
+     */
+    private int placeShield(BlockPos anchor, boolean charged, float current) {
+        int slot = findBlockSlot(anchor);
+        if (slot == -1) return 1;
+
+        Vec3d eye = mc.player.getEyePos();
         Vec3d body = mc.player.getPos().add(0, mc.player.getHeight() / 2.0, 0);
-        Direction bestSide = null;
+        BlockPos bestCell = null;
+        BlockHitResult bestHit = null;
+        float bestDamage = current - 0.05f;
         double bestDist = Double.MAX_VALUE;
-        for (Direction side : Direction.values()) {
-            BlockPos cell = anchor.offset(side);
-            if (!mc.world.getBlockState(cell).isReplaceable()) continue;
-            if (mc.player.getBoundingBox().intersects(new Box(cell))) continue;
-            double d = Vec3d.ofCenter(cell).squaredDistanceTo(body);
-            if (d < bestDist) {
-                bestDist = d;
-                bestSide = side;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    BlockPos cell = anchor.add(dx, dy, dz);
+                    if (!canPlaceAt(cell)) continue;
+                    BlockHitResult hit = supportClick(cell, anchor, charged);
+                    if (hit == null || eye.distanceTo(hit.getPos()) > range.d()) continue;
+                    float dmg = selfDamage(anchor, List.of(new Box(cell)));
+                    double dist = Vec3d.ofCenter(cell).squaredDistanceTo(body);
+                    if (dmg < bestDamage - 0.01f || (dmg <= bestDamage + 0.01f && bestCell != null && dist < bestDist)) {
+                        bestDamage = Math.min(dmg, bestDamage);
+                        bestDist = dist;
+                        bestCell = cell.toImmutable();
+                        bestHit = hit;
+                    }
+                }
             }
         }
-        if (bestSide == null) return false;
+        if (bestCell == null) return 2;
 
         select(slot);
-        Vec3d hitPos = Vec3d.ofCenter(anchor).add(bestSide.getOffsetX() * 0.5, bestSide.getOffsetY() * 0.5, bestSide.getOffsetZ() * 0.5);
-        click(new BlockHitResult(hitPos, bestSide, anchor, false));
-        return true;
+        click(bestHit);
+        return 0;
     }
 
     private record PlaceSpot(BlockPos place, BlockHitResult hit) {
@@ -402,17 +426,29 @@ public class SafeAnchor extends Module {
         BlockState state = mc.world.getBlockState(anchor);
         int charges = state.get(RespawnAnchorBlock.CHARGES);
 
-        if (!shield.is("Off") && !isShielded(anchor)) {
-            if (shieldTries >= 2) {
-                mc.player.sendMessage(Text.literal("SafeAnchor: can't block the explosion, no block placed"), true);
+        float self = selfDamage(anchor, List.of());
+        boolean deadly = self >= mc.player.getHealth() + mc.player.getAbsorptionAmount();
+        if (!shield.is("Off") && (self > maxSelf.d() || deadly)) {
+            if (shieldTries >= 4) {
+                mc.player.sendMessage(Text.literal("SafeAnchor: can't block the explosion enough (~" + Math.round(self * 10) / 10.0
+                        + " damage, max " + maxSelf.d() + "), no block placed"), true);
                 return;
             }
             last = now;
-            if (placeShield(anchor)) {
+            int result = placeShield(anchor, charges > 0, self);
+            if (result == 0) {
                 shieldTries++;
-            } else {
+            } else if (result == 1) {
                 mc.player.sendMessage(Text.literal("SafeAnchor: no shield block in hotbar"), true);
+            } else {
+                mc.player.sendMessage(Text.literal("SafeAnchor: no block spot lowers the damage (~" + Math.round(self * 10) / 10.0
+                        + ", max " + maxSelf.d() + ")"), true);
             }
+            return;
+        }
+        if (self > maxSelf.d() || deadly) {
+            mc.player.sendMessage(Text.literal("SafeAnchor: explosion would deal ~" + Math.round(self * 10) / 10.0
+                    + " damage to you (max " + maxSelf.d() + "), not exploding"), true);
             return;
         }
 

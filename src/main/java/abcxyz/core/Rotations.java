@@ -23,9 +23,13 @@ public final class Rotations {
         return MathHelper.clamp((float) -Math.toDegrees(Math.atan2(d.y, flat)), -90f, 90f);
     }
 
-    /** Turns the real camera towards the point. */
+    /**
+     * Turns the real camera towards the point. The yaw is set to the nearest equivalent angle of the current one
+     * (never a jump of 360 degrees), otherwise the camera interpolation spins the view for a moment.
+     */
     public static void lookAt(Vec3d target) {
-        mc.player.setYaw(yawTo(target));
+        float current = mc.player.getYaw();
+        mc.player.setYaw(current + MathHelper.wrapDegrees(yawTo(target) - current));
         mc.player.setPitch(pitchTo(target));
     }
 
