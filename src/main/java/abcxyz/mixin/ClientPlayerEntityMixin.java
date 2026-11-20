@@ -1,8 +1,6 @@
 package abcxyz.mixin;
 
-import abcxyz.AbcxyzClient;
 import abcxyz.core.SilentRotation;
-import abcxyz.module.combat.AutoCrystal;
 import net.minecraft.client.network.ClientPlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,20 +12,12 @@ public class ClientPlayerEntityMixin {
     /** Runs once per tick, right before the movement packet (position + rotation) is built and sent. */
     @Inject(method = "sendMovementPackets", at = @At("HEAD"))
     private void abcxyz$beforeMovement(CallbackInfo ci) {
-        if (AbcxyzClient.modules != null) {
-            AutoCrystal crystal = AbcxyzClient.modules.get(AutoCrystal.class);
-            if (crystal != null && crystal.isEnabled()) crystal.beforeMovement();
-        }
         SilentRotation.apply((ClientPlayerEntity) (Object) this);
     }
 
-    /** The movement packet is out: put the real rotation back and do the planned actions. */
+    /** The movement packet is out: put the real rotation back. */
     @Inject(method = "sendMovementPackets", at = @At("RETURN"))
     private void abcxyz$afterMovement(CallbackInfo ci) {
         SilentRotation.restore((ClientPlayerEntity) (Object) this);
-        if (AbcxyzClient.modules != null) {
-            AutoCrystal crystal = AbcxyzClient.modules.get(AutoCrystal.class);
-            if (crystal != null && crystal.isEnabled()) crystal.afterMovement();
-        }
     }
 }
