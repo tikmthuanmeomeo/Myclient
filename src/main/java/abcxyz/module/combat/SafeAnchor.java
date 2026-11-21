@@ -42,7 +42,6 @@ import java.util.function.Predicate;
  *    with exposure rays, armor and resistance) is at most "Max self damage",
  * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone, only while the estimated damage
  *    to you is at most "Max self damage" (and never when it would kill you),
- * 5) "Block after": places a block where the anchor was (Where = Spot) or on top of that spot (Where = Above).
  * With Delay 0 the steps run back to back (several per frame), a bigger Delay slows every step down.
  * It does nothing in the Nether, because anchors don't explode there. Set ActivateKey to None to always be active.
  */
@@ -51,8 +50,6 @@ public class SafeAnchor extends Module {
     private final NumSetting delay = add(new NumSetting("Delay", 0, 0, 500, 10));
     private final ModeSetting shield = add(new ModeSetting("Shield", "Obsidian", "Obsidian", "AnyBlock", "Off"));
     private final NumSetting maxSelf = add(new NumSetting("MaxSelfDamage", 2.0, 0, 36, 0.5));
-    private final ModeSetting top = add(new ModeSetting("Top", "Spot", "Spot", "Above"));
-    private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
     private final ModeSetting rotateMode = add(new ModeSetting("RotateMode", "Silent", "Silent", "Camera"));
     private final BoolSetting rotate = add(new BoolSetting("Rotate", true)).with(rotateMode);
     private final NumSetting targetRange = add(new NumSetting("TargetRange", 8, 2, 16, 1));
@@ -69,8 +66,9 @@ public class SafeAnchor extends Module {
     private int ticks = 0;
     private int rotatedTick = -1;
 
-    private BlockPos topPending = null;
-    private long topStart = 0L;
+    /** The anchor we just exploded: wait until the server has removed it instead of clicking it again. */
+    private BlockPos explodedAt = null;
+    private long explodedTime = 0L;
 
     private BlockPos placedAt = null;
     private long placedTime = 0L;
@@ -80,9 +78,7 @@ public class SafeAnchor extends Module {
         super("SafeAnchor", "Hold the key: look at the anchor, shield, charge and explode it safely", Category.Combat);
         activateKey.label = "Activate key";
         maxSelf.label = "Max self damage";
-        placeAfter.label = "Block after";
         rotateMode.label = "Mode";
-        top.label = "Where";
         targetRange.label = "Target range";
         placeMode.label = "Mode";
         placeAnchor.label = "Place anchor";
@@ -107,7 +103,7 @@ public class SafeAnchor extends Module {
     private void reset() {
         shieldTries = 0;
         lastAnchor = null;
-        topPending = null;
+        explodedAt = null;
         placedAt = null;
     }
 
@@ -372,55 +368,6 @@ public class SafeAnchor extends Module {
         return 2;
     }
 
-    /**
-     * After the explosion: put a block where the anchor was (or on top of that spot).
-     *
-     * @return true when it did something (carry on right away), false while it waits
-     */
-    private boolean handleTop(long now) {
-        if (!placeAfter.on() || now - topStart > 2000) {
-            finishTop(now);
-            return true;
-        }
-        BlockPos spot = topPending;
-        if (mc.world.getBlockState(spot).isOf(Blocks.RESPAWN_ANCHOR)) return false; // explosion not processed yet
-        int slot = findBlockSlot(spot);
-        if (slot == -1) {
-            mc.player.sendMessage(Text.literal("SafeAnchor: no block in hotbar for the top"), true);
-            finishTop(now);
-            return false;
-        }
-        BlockPos[] candidates = top.is("Above") ? new BlockPos[]{spot.up(), spot} : new BlockPos[]{spot};
-        Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
-        for (BlockPos place : candidates) {
-            if (!mc.world.getBlockState(place).isReplaceable()) {
-                finishTop(now); // already filled
-                return true;
-            }
-            if (mc.player.getBoundingBox().intersects(new Box(place))) continue;
-            for (Direction d : order) {
-                BlockPos support = place.offset(d);
-                if (mc.world.getBlockState(support).isReplaceable()) continue;
-                if (!face(Vec3d.ofCenter(spot))) return false;
-                Direction clicked = d.getOpposite();
-                Vec3d hitPos = Vec3d.ofCenter(support).add(clicked.getOffsetX() * 0.5, clicked.getOffsetY() * 0.5, clicked.getOffsetZ() * 0.5);
-                select(slot);
-                click(new BlockHitResult(hitPos, clicked, support, false));
-                finishTop(now);
-                return true;
-            }
-        }
-        mc.player.sendMessage(Text.literal("SafeAnchor: nothing to place the top block against"), true);
-        finishTop(now);
-        return false;
-    }
-
-    private void finishTop(long now) {
-        topPending = null;
-        last = now;
-        restoreSlot();
-    }
-
     @Override
     public void onFrame() {
         if (mc.player == null || mc.world == null || mc.interactionManager == null || mc.currentScreen != null) return;
@@ -435,8 +382,6 @@ public class SafeAnchor extends Module {
 
     /** One step of the sequence. @return true when it did something and the next step can follow, false to wait. */
     private boolean step(long now) {
-        if (topPending != null) return handleTop(now);
-
         boolean active = active();
         BlockPos anchor = active ? findAnchor() : null;
         if (anchor == null) {
@@ -450,6 +395,7 @@ public class SafeAnchor extends Module {
             lastAnchor = null;
             return false;
         }
+        if (anchor.equals(explodedAt) && now - explodedTime < 1000) return false; // exploded, waiting for the server
         if (!anchor.equals(lastAnchor)) {
             lastAnchor = anchor;
             shieldTries = 0;
@@ -507,10 +453,8 @@ public class SafeAnchor extends Module {
         last = now;
         if (click(hitFor(anchor))) {
             placedAt = null;
-            if (placeAfter.on()) {
-                topPending = anchor.toImmutable();
-                topStart = now;
-            }
+            explodedAt = anchor.toImmutable();
+            explodedTime = now;
             return true;
         }
         return false;
