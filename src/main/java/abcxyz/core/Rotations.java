@@ -41,7 +41,7 @@ public final class Rotations {
 
     /** Sends the server a look towards the point without moving your camera. Call restore() after the action. */
     public static void silentLook(Vec3d target) {
-        send(yawTo(target), pitchTo(target));
+        send(MathHelper.wrapDegrees(yawTo(target)), pitchTo(target));
     }
 
     /** Tells the server your real camera rotation again. */

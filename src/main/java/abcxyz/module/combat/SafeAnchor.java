@@ -35,22 +35,26 @@ import java.util.function.Predicate;
  * 0) "Place anchor": when there is no anchor yet it places one from your hotbar. Mode Target = next to the closest
  *    player within Target range (on the block face you look at when nobody is around), Mode Crosshair = always on
  *    the block face you are looking at,
- * 1) with Rotate it turns to the anchor under the crosshair, or to the closest one within Range,
+ * 1) with Rotate it works on the anchor under the crosshair, or on the closest one within Range. Rotate mode Silent:
+ *    only the server sees you look at the anchor / the block you place against (a look packet right before each click,
+ *    your real rotation right after), your camera does not move, no waiting for a tick. Mode Camera: turns your camera,
  * 2) places shield blocks around the anchor until the damage the explosion would do to you (estimated like vanilla,
  *    with exposure rays, armor and resistance) is at most "Max self damage",
  * 3) charges it with glowstone, 4) explodes it with an item that is not glowstone, only while the estimated damage
  *    to you is at most "Max self damage" (and never when it would kill you),
  * 5) "Block after": places a block where the anchor was (Where = Spot) or on top of that spot (Where = Above).
+ * With Delay 0 the steps run back to back (several per frame), a bigger Delay slows every step down.
  * It does nothing in the Nether, because anchors don't explode there. Set ActivateKey to None to always be active.
  */
 public class SafeAnchor extends Module {
     private final NumSetting range = add(new NumSetting("Range", 4.5, 1, 6, 0.1));
-    private final NumSetting delay = add(new NumSetting("Delay", 50, 0, 500, 10));
+    private final NumSetting delay = add(new NumSetting("Delay", 0, 0, 500, 10));
     private final ModeSetting shield = add(new ModeSetting("Shield", "Obsidian", "Obsidian", "AnyBlock", "Off"));
     private final NumSetting maxSelf = add(new NumSetting("MaxSelfDamage", 2.0, 0, 36, 0.5));
     private final ModeSetting top = add(new ModeSetting("Top", "Spot", "Spot", "Above"));
     private final BoolSetting placeAfter = add(new BoolSetting("PlaceAfter", true)).with(top);
-    private final BoolSetting rotate = add(new BoolSetting("Rotate", true));
+    private final ModeSetting rotateMode = add(new ModeSetting("RotateMode", "Silent", "Silent", "Camera"));
+    private final BoolSetting rotate = add(new BoolSetting("Rotate", true)).with(rotateMode);
     private final NumSetting targetRange = add(new NumSetting("TargetRange", 8, 2, 16, 1));
     private final ModeSetting placeMode = add(new ModeSetting("PlaceMode", "Target", "Target", "Crosshair"));
     private final BoolSetting placeAnchor = add(new BoolSetting("PlaceAnchor", true)).with(targetRange, placeMode);
@@ -77,6 +81,7 @@ public class SafeAnchor extends Module {
         activateKey.label = "Activate key";
         maxSelf.label = "Max self damage";
         placeAfter.label = "Block after";
+        rotateMode.label = "Mode";
         top.label = "Where";
         targetRange.label = "Target range";
         placeMode.label = "Mode";
@@ -140,15 +145,29 @@ public class SafeAnchor extends Module {
         });
     }
 
+    private boolean silent() {
+        return rotate.on() && rotateMode.is("Silent");
+    }
+
+    /**
+     * Clicks the block. With silent rotation the server sees you look at the click point just for this click:
+     * a look packet goes out right before it and your real rotation right after, your camera never moves.
+     */
     private boolean click(BlockHitResult hit) {
+        boolean silent = silent();
+        if (silent) Rotations.silentLook(hit.getPos());
         ActionResult result = mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
         if (result.isAccepted()) mc.player.swingHand(Hand.MAIN_HAND);
+        if (silent) Rotations.restore();
         return result.isAccepted();
     }
 
-    /** With Rotate on, turns to the point and waits one tick so the server has seen the new rotation. */
+    /**
+     * Rotate mode Camera: turns the camera to the point and waits one tick so the server has seen it.
+     * Silent mode (or Rotate off): nothing to wait for, click() looks silently.
+     */
     private boolean face(Vec3d point) {
-        if (!rotate.on()) return true;
+        if (!rotate.on() || silent()) return true;
         if (!Rotations.isLookingAt(point, 1.5f)) {
             Rotations.lookAt(point);
             rotatedTick = ticks;
@@ -328,66 +347,72 @@ public class SafeAnchor extends Module {
         return null;
     }
 
-    /** @return true while it is busy (rotating, placing or waiting for the server), false when there is nothing to do. */
-    private boolean tryPlaceAnchor(long now) {
+    /** @return 0 = nothing to place, 1 = placed an anchor (carry on right away), 2 = busy or waiting. */
+    private int tryPlaceAnchor(long now) {
         if (placedAt != null) {
-            if (now - placedTime < 700) return true; // waiting for the anchor to show up
+            if (now - placedTime < 700) return 2; // waiting for the anchor to show up
             placedAt = null;
         }
         int slot = findHotbar(stack -> stack.isOf(Items.RESPAWN_ANCHOR));
         if (slot == -1) {
             last = now;
             mc.player.sendMessage(Text.literal("SafeAnchor: no respawn anchor in hotbar"), true);
-            return false;
+            return 0;
         }
         PlaceSpot spot = findPlaceSpot();
-        if (spot == null) return false;
-        if (!face(spot.hit().getPos())) return true;
+        if (spot == null) return 0;
+        if (!face(spot.hit().getPos())) return 2;
         select(slot);
         last = now;
         if (click(spot.hit())) {
             placedAt = spot.place();
             placedTime = now;
+            return 1;
         }
-        return true;
+        return 2;
     }
 
-    /** After the explosion: put a block where the anchor was (or on top of that spot). */
-    private void handleTop(long now) {
+    /**
+     * After the explosion: put a block where the anchor was (or on top of that spot).
+     *
+     * @return true when it did something (carry on right away), false while it waits
+     */
+    private boolean handleTop(long now) {
         if (!placeAfter.on() || now - topStart > 2000) {
             finishTop(now);
-            return;
+            return true;
         }
         BlockPos spot = topPending;
-        if (mc.world.getBlockState(spot).isOf(Blocks.RESPAWN_ANCHOR)) return; // explosion not processed yet
+        if (mc.world.getBlockState(spot).isOf(Blocks.RESPAWN_ANCHOR)) return false; // explosion not processed yet
         int slot = findBlockSlot(spot);
         if (slot == -1) {
             mc.player.sendMessage(Text.literal("SafeAnchor: no block in hotbar for the top"), true);
             finishTop(now);
-            return;
+            return false;
         }
         BlockPos[] candidates = top.is("Above") ? new BlockPos[]{spot.up(), spot} : new BlockPos[]{spot};
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (BlockPos place : candidates) {
             if (!mc.world.getBlockState(place).isReplaceable()) {
                 finishTop(now); // already filled
-                return;
+                return true;
             }
             if (mc.player.getBoundingBox().intersects(new Box(place))) continue;
             for (Direction d : order) {
                 BlockPos support = place.offset(d);
                 if (mc.world.getBlockState(support).isReplaceable()) continue;
-                if (!face(Vec3d.ofCenter(spot))) return;
+                if (!face(Vec3d.ofCenter(spot))) return false;
                 Direction clicked = d.getOpposite();
                 Vec3d hitPos = Vec3d.ofCenter(support).add(clicked.getOffsetX() * 0.5, clicked.getOffsetY() * 0.5, clicked.getOffsetZ() * 0.5);
                 select(slot);
                 click(new BlockHitResult(hitPos, clicked, support, false));
                 finishTop(now);
-                return;
+                return true;
             }
         }
         mc.player.sendMessage(Text.literal("SafeAnchor: nothing to place the top block against"), true);
         finishTop(now);
+        return false;
     }
 
     private void finishTop(long now) {
@@ -400,28 +425,36 @@ public class SafeAnchor extends Module {
     public void onFrame() {
         if (mc.player == null || mc.world == null || mc.interactionManager == null || mc.currentScreen != null) return;
         if (mc.world.getDimension().respawnAnchorWorks()) return;
-        long now = System.currentTimeMillis();
-        if (now - last < delay.d()) return;
-
-        if (topPending != null) {
-            handleTop(now);
-            return;
+        // with Delay 0 the steps run back to back (the client already shows the blocks it placed), a bigger Delay slows each one down
+        for (int i = 0; i < 8; i++) {
+            long now = System.currentTimeMillis();
+            if (now - last < delay.d()) return;
+            if (!step(now)) return;
         }
+    }
+
+    /** One step of the sequence. @return true when it did something and the next step can follow, false to wait. */
+    private boolean step(long now) {
+        if (topPending != null) return handleTop(now);
 
         boolean active = active();
         BlockPos anchor = active ? findAnchor() : null;
         if (anchor == null) {
-            if (active && placeAnchor.on() && tryPlaceAnchor(now)) return;
+            if (active && placeAnchor.on()) {
+                int placed = tryPlaceAnchor(now);
+                if (placed == 1) return true;
+                if (placed == 2) return false;
+            }
             if (previousSlot != -1) restoreSlot();
             shieldTries = 0;
             lastAnchor = null;
-            return;
+            return false;
         }
         if (!anchor.equals(lastAnchor)) {
             lastAnchor = anchor;
             shieldTries = 0;
         }
-        if (!face(Vec3d.ofCenter(anchor))) return;
+        if (!face(Vec3d.ofCenter(anchor))) return false;
 
         BlockState state = mc.world.getBlockState(anchor);
         int charges = state.get(RespawnAnchorBlock.CHARGES);
@@ -432,43 +465,44 @@ public class SafeAnchor extends Module {
             if (shieldTries >= 4) {
                 mc.player.sendMessage(Text.literal("SafeAnchor: can't block the explosion enough (~" + Math.round(self * 10) / 10.0
                         + " damage, max " + maxSelf.d() + "), no block placed"), true);
-                return;
+                return false;
             }
             last = now;
             int result = placeShield(anchor, charges > 0, self);
             if (result == 0) {
                 shieldTries++;
-            } else if (result == 1) {
+                return true;
+            }
+            if (result == 1) {
                 mc.player.sendMessage(Text.literal("SafeAnchor: no shield block in hotbar"), true);
             } else {
                 mc.player.sendMessage(Text.literal("SafeAnchor: no block spot lowers the damage (~" + Math.round(self * 10) / 10.0
                         + ", max " + maxSelf.d() + ")"), true);
             }
-            return;
+            return false;
         }
         if (self > maxSelf.d() || deadly) {
             mc.player.sendMessage(Text.literal("SafeAnchor: explosion would deal ~" + Math.round(self * 10) / 10.0
                     + " damage to you (max " + maxSelf.d() + "), not exploding"), true);
-            return;
+            return false;
         }
 
         if (charges == 0) {
             int slot = findHotbar(stack -> stack.isOf(Items.GLOWSTONE));
             if (slot == -1) {
                 mc.player.sendMessage(Text.literal("SafeAnchor: no glowstone in hotbar"), true);
-                return;
+                return false;
             }
             select(slot);
             last = now;
-            click(hitFor(anchor));
-            return;
+            return click(hitFor(anchor));
         }
 
         // charged and shielded: explode with something that is not glowstone
         int current = mc.player.getInventory().selectedSlot;
         int slot = !mc.player.getInventory().getStack(current).isOf(Items.GLOWSTONE) ? current
                 : findHotbar(stack -> !stack.isOf(Items.GLOWSTONE));
-        if (slot == -1) return;
+        if (slot == -1) return false;
         select(slot);
         last = now;
         if (click(hitFor(anchor))) {
@@ -477,6 +511,8 @@ public class SafeAnchor extends Module {
                 topPending = anchor.toImmutable();
                 topStart = now;
             }
+            return true;
         }
+        return false;
     }
 }
