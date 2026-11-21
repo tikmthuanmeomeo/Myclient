@@ -10,7 +10,12 @@
     "ClientPlayerEntityMixin",
     "HeldItemRendererMixin",
     "LivingEntityMixin",
-    "MinecraftClientMixin"
+    "MinecraftClientMixin",
+    "BackgroundRendererMixin",
+    "InGameOverlayRendererMixin",
+    "EntityRenderDispatcherMixin",
+    "CameraMixin",
+    "KeyboardInputMixin"
   ],
   "injectors": {
     "defaultRequire": 1

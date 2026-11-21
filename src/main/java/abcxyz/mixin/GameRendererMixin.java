@@ -1,7 +1,7 @@
 package abcxyz.mixin;
 
 import abcxyz.AbcxyzClient;
-import abcxyz.module.render.NoHurtCam;
+import abcxyz.module.render.NoRender;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,7 +15,7 @@ public class GameRendererMixin {
     @Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
     private void abcxyz$noHurtCam(MatrixStack matrices, float tickDelta, CallbackInfo ci) {
         if (AbcxyzClient.modules == null) return;
-        NoHurtCam module = AbcxyzClient.modules.get(NoHurtCam.class);
-        if (module != null && module.isEnabled()) ci.cancel();
+        NoRender module = AbcxyzClient.modules.get(NoRender.class);
+        if (module != null && module.noHurtCam()) ci.cancel();
     }
 }

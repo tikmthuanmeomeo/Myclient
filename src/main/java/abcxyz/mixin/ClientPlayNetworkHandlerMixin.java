@@ -1,10 +1,12 @@
 package abcxyz.mixin;
 
 import abcxyz.AbcxyzClient;
+import abcxyz.core.TickRate;
 import abcxyz.module.combat.Velocity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
+import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,5 +26,11 @@ public class ClientPlayNetworkHandlerMixin {
         double h = velocity.horizontal.d() / 100.0;
         double v = velocity.vertical.d() / 100.0;
         mc.player.setVelocity(packet.getVelocityX() * h, packet.getVelocityY() * v, packet.getVelocityZ() * h);
+    }
+
+    /** The server sends the world time every 20 ticks: the time between two of them gives the TPS (HudEdit). */
+    @Inject(method = "onWorldTimeUpdate", at = @At("HEAD"))
+    private void abcxyz$tps(WorldTimeUpdateS2CPacket packet, CallbackInfo ci) {
+        if (MinecraftClient.getInstance().isOnThread()) TickRate.onTimeUpdate();
     }
 }

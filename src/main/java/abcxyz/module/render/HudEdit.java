@@ -5,8 +5,10 @@ import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
 import abcxyz.core.ModeSetting;
 import abcxyz.core.Module;
+import abcxyz.core.TickRate;
 import abcxyz.core.NumSetting;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 
@@ -14,14 +16,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * The HUD: client name, list of enabled modules and your inventory. (This replaces the old ModuleList module.)
- * Open the click GUI and drag any of the three parts to move it; positions are saved in the config.
+ * The HUD: client name, list of enabled modules, your inventory and a stats box (FPS, ping, TPS, speed).
+ * (This replaces the old ModuleList module.) Open the click GUI and drag any part to move it; positions are saved in the config.
  */
 public class HudEdit extends Module {
     public enum Element {
-        WATERMARK("Watermark"), LIST("Module list"), INVENTORY("Inventory");
+        WATERMARK("Watermark"), LIST("Module list"), INVENTORY("Inventory"), INFO("Stats");
 
         public final String title;
 
@@ -37,6 +40,17 @@ public class HudEdit extends Module {
     private final BoolSetting hotbar = add(new BoolSetting("InvHotbar", false));
     private final NumSetting invScale = add(new NumSetting("InvScale", 1.0, 0.5, 2.0, 0.1));
     private final BoolSetting inventory = add(new BoolSetting("Inventory", true)).with(hotbar, invScale);
+
+    private final BoolSetting showFps = add(new BoolSetting("ShowFps", true));
+    private final BoolSetting showPing = add(new BoolSetting("ShowPing", true));
+    private final BoolSetting showTps = add(new BoolSetting("ShowTps", true));
+    private final BoolSetting showSpeed = add(new BoolSetting("ShowSpeed", true));
+    private final BoolSetting stats = add(new BoolSetting("Stats", true)).with(showFps, showPing, showTps, showSpeed);
+
+    /** Horizontal speed in blocks per second, averaged over the last few ticks. */
+    private final double[] speedSamples = new double[5];
+    private int speedIndex = 0;
+    private double speed = 0.0;
 
     /** Saved position of each element as a fraction of the window size; -1 = default place. Hidden in the GUI. */
     private final NumSetting[] posX = new NumSetting[Element.values().length];
@@ -57,6 +71,11 @@ public class HudEdit extends Module {
         extra.label = "Info";
         hotbar.label = "Hotbar";
         invScale.label = "Scale";
+        stats.label = "Stats";
+        showFps.label = "FPS";
+        showPing.label = "Ping";
+        showTps.label = "TPS";
+        showSpeed.label = "Speed";
         for (Element e : Element.values()) {
             posX[e.ordinal()] = add(new NumSetting(e.title.replace(" ", "") + "X", -1, -1, 1, 0.0001));
             posY[e.ordinal()] = add(new NumSetting(e.title.replace(" ", "") + "Y", -1, -1, 1, 0.0001));
@@ -80,6 +99,26 @@ public class HudEdit extends Module {
         return v < 0 ? def : (int) Math.round(v * sh);
     }
 
+    // ---------------------------------------------------------------- stats
+
+    @Override
+    public void onTick() {
+        if (mc.player == null) return;
+        double dx = mc.player.getX() - mc.player.prevX;
+        double dz = mc.player.getZ() - mc.player.prevZ;
+        speedSamples[speedIndex] = Math.sqrt(dx * dx + dz * dz) * 20.0;
+        speedIndex = (speedIndex + 1) % speedSamples.length;
+        double sum = 0;
+        for (double v : speedSamples) sum += v;
+        speed = sum / speedSamples.length;
+    }
+
+    private int ping() {
+        if (mc.getNetworkHandler() == null || mc.player == null) return 0;
+        PlayerListEntry entry = mc.getNetworkHandler().getPlayerListEntry(mc.player.getUuid());
+        return entry == null ? 0 : entry.getLatency();
+    }
+
     // ---------------------------------------------------------------- drawing
 
     @Override
@@ -90,6 +129,35 @@ public class HudEdit extends Module {
         if (watermark.on()) drawWatermark(context, sw, sh);
         if (moduleList.on()) drawList(context, sw, sh);
         if (inventory.on()) drawInventory(context, sw, sh);
+        if (stats.on()) drawStats(context, sw, sh);
+    }
+
+    private void drawStats(DrawContext ctx, int sw, int sh) {
+        int idx = Element.INFO.ordinal();
+        List<String> lines = new ArrayList<>();
+        if (showFps.on()) lines.add("FPS \u00a7f" + mc.getCurrentFps());
+        if (showPing.on()) lines.add("Ping \u00a7f" + ping() + "ms");
+        if (showTps.on()) {
+            float tps = TickRate.tps();
+            lines.add("TPS \u00a7f" + (tps < 0 ? "--" : String.format(Locale.ROOT, "%.1f", tps)));
+        }
+        if (showSpeed.on()) lines.add("Speed \u00a7f" + String.format(Locale.ROOT, "%.1f", speed) + " b/s");
+        if (lines.isEmpty()) return;
+
+        int maxW = 40;
+        for (String line : lines) maxW = Math.max(maxW, mc.textRenderer.getWidth(line));
+        int height = lines.size() * 10;
+        int x = anchorX(Element.INFO, sw, sw - maxW - 8);
+        int y = anchorY(Element.INFO, sh, sh - height - 6);
+        anchor[idx][0] = x;
+        anchor[idx][1] = y;
+        for (int i = 0; i < lines.size(); i++) {
+            int yy = y + i * 10;
+            ctx.fill(x - 2, yy - 1, x + maxW + 2, yy + 9, 0x70000000);
+            ctx.drawTextWithShadow(mc.textRenderer, lines.get(i), x, yy, rainbow(i));
+        }
+        bounds[idx] = new int[]{x - 2, y - 1, maxW + 4, height};
+        shown[idx] = true;
     }
 
     private void drawWatermark(DrawContext ctx, int sw, int sh) {
