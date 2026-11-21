@@ -9,7 +9,25 @@ import net.minecraft.util.math.Vec3d;
 public final class Rotations {
     private static final MinecraftClient mc = MinecraftClient.getInstance();
 
+    /** The last silent look, so your own model (F5 / Freecam) can turn its head to it. */
+    private static float visualYaw = 0f;
+    private static float visualPitch = 0f;
+    private static long visualTime = 0L;
+
     private Rotations() {
+    }
+
+    /** True for a moment after a silent look: your model should look that way. */
+    public static boolean hasVisual() {
+        return System.currentTimeMillis() - visualTime < 350L;
+    }
+
+    public static float visualYaw() {
+        return visualYaw;
+    }
+
+    public static float visualPitch() {
+        return visualPitch;
     }
 
     public static float yawTo(Vec3d target) {
@@ -41,7 +59,12 @@ public final class Rotations {
 
     /** Sends the server a look towards the point without moving your camera. Call restore() after the action. */
     public static void silentLook(Vec3d target) {
-        send(MathHelper.wrapDegrees(yawTo(target)), pitchTo(target));
+        float yaw = MathHelper.wrapDegrees(yawTo(target));
+        float pitch = pitchTo(target);
+        visualYaw = yaw;
+        visualPitch = pitch;
+        visualTime = System.currentTimeMillis();
+        send(yaw, pitch);
     }
 
     /** Tells the server your real camera rotation again. */

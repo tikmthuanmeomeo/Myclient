@@ -15,7 +15,8 @@
     "InGameOverlayRendererMixin",
     "EntityRenderDispatcherMixin",
     "CameraMixin",
-    "KeyboardInputMixin"
+    "KeyboardInputMixin",
+    "LivingEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
