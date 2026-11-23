@@ -136,7 +136,7 @@ public class SigalChunkFinder extends Module {
     }
 
     public SigalChunkFinder() {
-        super("SigalChunkFinder", "Finds probable base locations using growth and rotated-deepslate signals.", Category.Render);
+        super("SigalChunkFinder", "Finds probable base locations using growth and rotated-deepslate signals.", Category.BaseFinder);
         ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> this.onChunk(chunk));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> this.resetState());
         this.simulationDistance = this.intS("scan-radius", "Chunks around each scanned chunk that receive its signals.", 12, 1, 20);

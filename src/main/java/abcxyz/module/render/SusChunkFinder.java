@@ -87,7 +87,7 @@ public class SusChunkFinder extends Module {
     private boolean restoreWasDown = false;
 
     public SusChunkFinder() {
-        super("SusChunkFinder", "Finds probable bases from fully grown plants and rotated deepslate", Category.Render);
+        super("SusChunkFinder", "Finds probable bases from fully grown plants and rotated deepslate", Category.BaseFinder);
         simDistance.label = "Scan distance (chunks)";
         sensitivity.label = "Sensitivity";
         autoSensitivity.label = "Auto sensitivity";

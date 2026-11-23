@@ -363,7 +363,7 @@ public class SusChunkDebugV2 extends Module {
     }
 
     public SusChunkDebugV2() {
-        super("SusChunkDebugV2", "Finds underground bases / base farms (through anti-xray) from block entities, blocks, bee nests, pillagers, llamas, dripstone, bamboo, kelp and vines. Few false alarms, only one sus chunk at a time.", Category.Render);
+        super("SusChunkDebugV2", "Finds underground bases / base farms (through anti-xray) from block entities, blocks, bee nests, pillagers, llamas, dripstone, bamboo, kelp and vines. Few false alarms, only one sus chunk at a time.", Category.BaseFinder);
         ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> this.onChunk(chunk));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> this.resetState());
         this.sensitivity = this.intS("sensitivity", "Sensitivity", 5, 1, 40);

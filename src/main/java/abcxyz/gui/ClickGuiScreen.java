@@ -192,7 +192,7 @@ public class ClickGuiScreen extends Screen {
             ctx.fill(x + i, top - 2, x + Math.min(PANEL_W, i + 2), top - 1,
                     lerpColor(ACCENT_A, ACCENT_B, i / (float) PANEL_W));
         }
-        ctx.drawTextWithShadow(textRenderer, Text.literal(category.name()).formatted(Formatting.BOLD), x + 8, y + 6, TEXT);
+        ctx.drawTextWithShadow(textRenderer, Text.literal(category.title).formatted(Formatting.BOLD), x + 8, y + 6, TEXT);
         int enabled = 0;
         for (Module m : modules) if (m.isEnabled()) enabled++;
         String count = enabled + "/" + modules.size();

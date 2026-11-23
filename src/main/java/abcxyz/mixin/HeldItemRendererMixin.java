@@ -1,7 +1,7 @@
 package abcxyz.mixin;
 
 import abcxyz.AbcxyzClient;
-import abcxyz.module.render.HandView;
+import abcxyz.module.render.FovChanger;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.HeldItemRenderer;
@@ -15,13 +15,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(HeldItemRenderer.class)
 public class HeldItemRendererMixin {
-    /** Start of drawing one first-person hand/item: apply the HandView position, rotation and scale. */
+    /** Start of drawing one first-person hand/item: FovChanger moves it back when the FOV is wide. */
     @Inject(method = "renderFirstPersonItem", at = @At("HEAD"))
-    private void abcxyz$handView(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
-                                 float swingProgress, ItemStack item, float equipProgress, MatrixStack matrices,
-                                 VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
+    private void abcxyz$fovHand(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
+                                float swingProgress, ItemStack item, float equipProgress, MatrixStack matrices,
+                                VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
         if (AbcxyzClient.modules == null) return;
-        HandView handView = AbcxyzClient.modules.get(HandView.class);
-        if (handView != null && handView.isEnabled()) handView.transform(hand, matrices);
+        FovChanger fovChanger = AbcxyzClient.modules.get(FovChanger.class);
+        if (fovChanger != null && fovChanger.isEnabled()) fovChanger.transformHand(matrices);
     }
 }

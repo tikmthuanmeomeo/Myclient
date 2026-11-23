@@ -9,7 +9,6 @@
     "GameRendererMixin",
     "ClientPlayerEntityMixin",
     "HeldItemRendererMixin",
-    "LivingEntityMixin",
     "MinecraftClientMixin",
     "BackgroundRendererMixin",
     "InGameOverlayRendererMixin",
