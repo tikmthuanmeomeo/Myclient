@@ -5,6 +5,8 @@ import abcxyz.core.TickRate;
 import abcxyz.module.combat.Velocity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
+import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -32,5 +34,17 @@ public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "onWorldTimeUpdate", at = @At("HEAD"))
     private void abcxyz$tps(WorldTimeUpdateS2CPacket packet, CallbackInfo ci) {
         if (MinecraftClient.getInstance().isOnThread()) TickRate.onTimeUpdate();
+    }
+
+    /** A block changed on the server (modules that watch blocks, like the chunk finders, hear about it). TAIL: only the main-thread pass gets here. */
+    @Inject(method = "onBlockUpdate", at = @At("TAIL"))
+    private void abcxyz$blockUpdate(BlockUpdateS2CPacket packet, CallbackInfo ci) {
+        if (AbcxyzClient.modules != null) AbcxyzClient.modules.blockUpdate(packet.getPos(), packet.getState());
+    }
+
+    @Inject(method = "onChunkDeltaUpdate", at = @At("TAIL"))
+    private void abcxyz$chunkDelta(ChunkDeltaUpdateS2CPacket packet, CallbackInfo ci) {
+        if (AbcxyzClient.modules == null) return;
+        packet.visitUpdates((pos, state) -> AbcxyzClient.modules.blockUpdate(pos.toImmutable(), state));
     }
 }

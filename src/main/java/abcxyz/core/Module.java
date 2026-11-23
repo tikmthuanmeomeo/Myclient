@@ -1,8 +1,10 @@
 package abcxyz.core;
 
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,5 +72,9 @@ public abstract class Module {
     }
 
     public void onHud(DrawContext context) {
+    }
+
+    /** A block changed (server told us). Not called for blocks the player changes locally before the server answers. */
+    public void onBlockUpdate(BlockPos pos, BlockState newState) {
     }
 }

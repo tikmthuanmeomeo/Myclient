@@ -20,6 +20,8 @@ import abcxyz.module.render.HudEdit;
 import abcxyz.module.render.Freecam;
 import abcxyz.module.render.FreeLook;
 import abcxyz.module.render.NoRender;
+import abcxyz.module.render.SigalChunkFinder;
+import abcxyz.module.render.SusChunkDebugV2;
 import abcxyz.module.render.SusChunkFinder;
 import abcxyz.module.render.Skybox;
 import abcxyz.module.render.Skyboxify;
@@ -55,6 +57,8 @@ public class ModuleManager {
         modules.add(new FullBright());
         modules.add(new NoRender());
         modules.add(new SusChunkFinder());
+        modules.add(new SigalChunkFinder());
+        modules.add(new SusChunkDebugV2());
         modules.add(new Freecam());
         modules.add(new FreeLook());
         modules.add(new FastUse());
@@ -123,6 +127,19 @@ public class ModuleManager {
             if (!m.isEnabled()) continue;
             try {
                 m.onFrame();
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
+        }
+    }
+
+    /** A block changed on the server: tell the enabled modules. */
+    public void blockUpdate(net.minecraft.util.math.BlockPos pos, net.minecraft.block.BlockState state) {
+        if (mc.player == null || mc.world == null) return;
+        for (Module m : modules) {
+            if (!m.isEnabled()) continue;
+            try {
+                m.onBlockUpdate(pos, state);
             } catch (Throwable t) {
                 t.printStackTrace();
             }
