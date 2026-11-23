@@ -56,6 +56,20 @@ public final class Render3D {
         return Tessellator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
     }
 
+    /** Filled shapes (quads). Only one builder can be open at a time: flush it before opening lines(). */
+    public static BufferBuilder quads() {
+        return Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+    }
+
+    /** A flat filled square-ish quad at height y between (x1, z1) and (x2, z2). */
+    public static void horizontalQuad(BufferBuilder b, Matrix4f m, double x1, double y, double z1, double x2, double z2, int argb) {
+        int a = (argb >> 24) & 255, r = (argb >> 16) & 255, g = (argb >> 8) & 255, bl = argb & 255;
+        b.vertex(m, (float) x1, (float) y, (float) z1).color(r, g, bl, a);
+        b.vertex(m, (float) x1, (float) y, (float) z2).color(r, g, bl, a);
+        b.vertex(m, (float) x2, (float) y, (float) z2).color(r, g, bl, a);
+        b.vertex(m, (float) x2, (float) y, (float) z1).color(r, g, bl, a);
+    }
+
     public static void flush(BufferBuilder builder) {
         BuiltBuffer built = builder.endNullable();
         if (built != null) BufferRenderer.drawWithGlobalProgram(built);

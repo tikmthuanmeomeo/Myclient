@@ -27,6 +27,21 @@ jobs:
             exit 1
           }
 
+      - name: Dump mappings (used to port code between versions)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          find . "$HOME/.gradle" -name "*.tiny" -size +500k 2>/dev/null | while IFS= read -r f; do echo "::notice::tiny: $f"; done
+          M=$(find . "$HOME/.gradle" -name "mappings.tiny" -size +500k 2>/dev/null | grep -i "1.21.4" | head -1)
+          [ -n "$M" ] || M=$(find . "$HOME/.gradle" -name "*.tiny" -size +500k 2>/dev/null | head -1)
+          echo "::notice::using: $M"
+          if [ -n "$M" ]; then
+            gzip -c "$M" > mappings-1.21.4.tiny.gz
+            gh release delete build-aux -y --cleanup-tag || true
+            gh release create build-aux mappings-1.21.4.tiny.gz --title "build aux" --notes "mappings dump for porting" --prerelease || true
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: abcxyz-jar

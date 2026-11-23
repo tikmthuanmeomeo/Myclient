@@ -20,6 +20,7 @@ import abcxyz.module.render.HudEdit;
 import abcxyz.module.render.Freecam;
 import abcxyz.module.render.FreeLook;
 import abcxyz.module.render.NoRender;
+import abcxyz.module.render.SusChunkFinder;
 import abcxyz.module.render.Skybox;
 import abcxyz.module.render.Skyboxify;
 import abcxyz.module.render.Tracers;
@@ -53,6 +54,7 @@ public class ModuleManager {
         modules.add(new Tracers());
         modules.add(new FullBright());
         modules.add(new NoRender());
+        modules.add(new SusChunkFinder());
         modules.add(new Freecam());
         modules.add(new FreeLook());
         modules.add(new FastUse());
