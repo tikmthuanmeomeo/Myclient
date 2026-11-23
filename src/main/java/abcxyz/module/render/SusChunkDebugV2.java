@@ -675,14 +675,14 @@ public class SusChunkDebugV2 extends Module {
         double maxSq = (double)(rad + 32) * (double)(rad + 32);
         this.notifiedTargets.removeIf(k -> BlockPos.fromLong((long)k).getSquaredDistance((Vec3i)pp) > maxSq);
         long radSq = (long)rad * (long)rad;
-        ArrayList<CallSite> found = new ArrayList<CallSite>();
+        ArrayList<String> found = new ArrayList<String>();
         block0: for (List<Target> list : this.targetMap.values()) {
             for (Target t : list) {
                 long dz;
                 if (found.size() >= 12) continue block0;
                 long dx = t.x() - pp.getX();
                 if (dx * dx + (dz = (long)(t.z() - pp.getZ())) * dz > radSq || !this.notifiedTargets.add(BlockPos.asLong((int)t.x(), (int)t.y(), (int)t.z()))) continue;
-                found.add((CallSite)((Object)(t.block().getName().getString() + " [" + t.x() + ", " + t.y() + ", " + t.z() + "]")));
+                found.add(t.block().getName().getString() + " [" + t.x() + ", " + t.y() + ", " + t.z() + "]");
             }
         }
         if (!found.isEmpty()) {
@@ -748,7 +748,7 @@ public class SusChunkDebugV2 extends Module {
         }
         this.scanned.add(key);
         ClientWorld world = this.mc.world;
-        List<Object> bes = cfg.bes() || cfg.bee() ? new ArrayList(chunk.getBlockEntities().values()) : List.of();
+        List<BlockEntity> bes = cfg.bes() || cfg.bee() ? new ArrayList<BlockEntity>(chunk.getBlockEntities().values()) : List.<BlockEntity>of();
         ArrayList<Sig> ents = new ArrayList<Sig>(entSigs);
         try {
             ex.submit(() -> {
@@ -1142,7 +1142,7 @@ public class SusChunkDebugV2 extends Module {
             block2: for (int dx = -1; dx <= 1; ++dx) {
                 for (int dy = -1; dy <= 1; ++dy) {
                     for (int dz = -1; dz <= 1; ++dz) {
-                        List l = (List)grid.get(SusChunkDebugV2.cell(gx + dx, gy + dy, gz + dz));
+                        List<Sig> l = (List<Sig>)(Object)grid.get(SusChunkDebugV2.cell(gx + dx, gy + dy, gz + dz));
                         if (l == null) continue;
                         for (Sig o : l) {
                             double ddz;
@@ -1187,7 +1187,7 @@ public class SusChunkDebugV2 extends Module {
 
     private static BInfo computeInfo(Block b) {
         String id;
-        switch (id = Registries.BLOCK.getId((Object)b).getPath()) {
+        switch (id = Registries.BLOCK.getId(b).getPath()) {
             case "cobweb": 
             case "end_portal_frame": {
                 return new BInfo(0.0f, 0, false, -1);
@@ -1329,7 +1329,7 @@ public class SusChunkDebugV2 extends Module {
             if (t == null || this.nearNatural(cs.cx(), cs.cz(), margin) || !(cs.score() >= need)) continue;
             cand.put(cs.key(), cs);
         }
-        Iterator<Object> iterator = this.amethystFlagged().iterator();
+        Iterator<Long> iterator = this.amethystFlagged().iterator();
         while (iterator.hasNext()) {
             int ccz;
             long k = (Long)iterator.next();
@@ -1354,9 +1354,9 @@ public class SusChunkDebugV2 extends Module {
         }
         ArrayList<Zone> all = new ArrayList<Zone>();
         HashSet<Long> seen = new HashSet<Long>();
-        t = cand.values().iterator();
-        while (t.hasNext()) {
-            ChunkSig start = (ChunkSig)t.next();
+        Iterator<ChunkSig> candIt = cand.values().iterator();
+        while (candIt.hasNext()) {
+            ChunkSig start = candIt.next();
             if (!seen.add(start.key())) continue;
             ArrayDeque<ChunkSig> q = new ArrayDeque<ChunkSig>();
             q.add(start);
