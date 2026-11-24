@@ -1,6 +1,8 @@
 package abcxyz.crystalaura;
 
 import abcxyz.AbcxyzClient;
+import abcxyz.mixin.KeyBindingAccessor;
+import abcxyz.mixin.MinecraftClientAccessor;
 import abcxyz.module.render.Freecam;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -31,25 +33,41 @@ public final class MeleeAttacks {
     }
 
     public static boolean handsFree(MinecraftClient mc, ClientPlayerEntity player) {
-        return !player.isUsingItem() && !player.isRiding() && !mc.interactionManager.isBreakingBlock();
+        return !player.isUsingItem() && !player.isRiding() && !mc.interactionManager.isBreakingBlock()
+                && !clickPending(mc.options.swapHandsKey) && !clickPending(mc.options.dropKey);
     }
 
     public static boolean clickPending(MinecraftClient mc) {
-        return false;
+        return clickPending(mc.options.attackKey);
     }
 
+    /** The player has clicked this key and the game has not acted on it yet. */
     public static boolean clickPending(KeyBinding key) {
-        return false;
+        return ((KeyBindingAccessor) key).abcxyz$timesPressed() > 0;
     }
 
     public static boolean rightClickComing(MinecraftClient mc) {
-        return mc.options.useKey.isPressed();
+        return mc.options.useKey.isPressed() || clickPending(mc.options.useKey);
     }
 
-    public static void claimTick(MinecraftClient mc) {
-        if (mc.player != null) {
-            noteAction(mc.player);
+    public static void takeAttackClicks(MinecraftClient mc) {
+        KeyBinding attack = mc.options.attackKey;
+        while (attack.wasPressed()) {
         }
+    }
+
+    /**
+     * The module acted this tick: throw away the player's own pending clicks and keep the game from using the item in
+     * hand again for a moment, otherwise the game places or uses it a second time (ghost blocks, rubber banding).
+     */
+    public static void claimTick(MinecraftClient mc) {
+        takeAttackClicks(mc);
+        KeyBinding use = mc.options.useKey;
+        while (use.wasPressed()) {
+        }
+        MinecraftClientAccessor access = (MinecraftClientAccessor) mc;
+        access.abcxyz$setAttackCooldown(Math.max(access.abcxyz$attackCooldown(), 1));
+        access.abcxyz$setItemUseCooldown(Math.max(access.abcxyz$itemUseCooldown(), 2));
     }
 
     public static boolean canAct(MinecraftClient mc) {

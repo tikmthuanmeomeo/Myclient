@@ -16,7 +16,9 @@
     "CameraMixin",
     "KeyboardInputMixin",
     "LivingEntityRendererMixin",
-    "ClientPlayerEntityAccessor"
+    "ClientPlayerEntityAccessor",
+    "MinecraftClientAccessor",
+    "KeyBindingAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

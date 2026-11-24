@@ -1,9 +1,10 @@
 /*
  * Ported from Anubis Client (GPL-3.0-only, (c) 4ldenz), see THIRD_PARTY_NOTICES/Anubis-LICENSE.txt.
- * Changed to run on Minecraft 1.21.4 inside the abcxyz client (no anchor aura, friend list or macro lock).
+ * Changed to run on Minecraft 1.21.4 inside the abcxyz client (no friend list or macro lock).
  */
 package abcxyz.module.combat;
 
+import abcxyz.AbcxyzClient;
 import abcxyz.compat.Render3DEvent;
 import abcxyz.core.BoolSetting;
 import abcxyz.core.Category;
@@ -207,7 +208,7 @@ public final class CrystalAura extends Module {
         }
         Look look = ServerRotation.canRotate(player) ? Look.SILENT : Look.CROSSHAIR;
         boolean crystals = !this.requireHold.on() || Crystals.isKeyDown(mc, this.holdKey.key());
-        AnchorAuraStub aura = null;
+        AnchorAura aura = AbcxyzClient.modules == null ? null : AbcxyzClient.modules.get(AnchorAura.class);
         boolean bl = anchors = aura != null && aura.isEnabled() && look == Look.SILENT;
         if (!MeleeAttacks.canAct(mc) || player.isSpectator() || !crystals && !anchors) {
             this.disengage(mc, player);
@@ -435,7 +436,7 @@ public final class CrystalAura extends Module {
         return class_12972 instanceof EndCrystalEntity && (crystal = (EndCrystalEntity)class_12972).isAlive() ? crystal : null;
     }
 
-    private Combo.Shot choose(MinecraftClient mc, Fight fight, EndCrystalEntity lastHit, boolean crystals, AnchorAuraStub aura) {
+    private Combo.Shot choose(MinecraftClient mc, Fight fight, EndCrystalEntity lastHit, boolean crystals, AnchorAura aura) {
         Combo.Shot picked;
         ArrayList<Combo.Shot> shots = new ArrayList<Combo.Shot>();
         Combo.Shot aimed = null;
@@ -778,7 +779,7 @@ public final class CrystalAura extends Module {
         return acted;
     }
 
-    private boolean fire(MinecraftClient mc, ClientPlayerEntity player, Fight fight, AnchorAuraStub aura, Combo.Shot shot) {
+    private boolean fire(MinecraftClient mc, ClientPlayerEntity player, Fight fight, AnchorAura aura, Combo.Shot shot) {
         if (shot.route() != -2) {
             this.select(player, shot.route());
         }
@@ -988,26 +989,5 @@ public final class CrystalAura extends Module {
     }
 
         private record Candidate(Plan plan, float bound) {
-    }
-
-    /** The anchor aura of the original client is not part of abcxyz: this stand-in never fires. */
-    private static final class AnchorAuraStub {
-        boolean isEnabled() {
-            return false;
-        }
-
-        List<Combo.Shot> shots(MinecraftClient mc, ClientPlayerEntity player, List<LivingEntity> enemies, List<LivingEntity> friends, int rtt, float rival) {
-            return List.of();
-        }
-
-        void show(Combo.Shot shot) {
-        }
-
-        boolean ready(MinecraftClient mc, ClientPlayerEntity player, Combo.Shot shot) {
-            return false;
-        }
-
-        void fire(MinecraftClient mc, ClientPlayerEntity player, Combo.Shot shot) {
-        }
     }
 }

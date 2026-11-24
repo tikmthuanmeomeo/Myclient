@@ -16,6 +16,7 @@ public final class ServerRotation {
 
     private static Rotation requested;
     private static float requestedSpeed;
+    private static float lastSpeed = 4.5f;
     private static Rotation server;
     private static ClientPlayerEntity owner;
 
@@ -30,6 +31,9 @@ public final class ServerRotation {
         if (requested == null) {
             requested = rotation;
             requestedSpeed = speed;
+            if (speed > 0.0f) {
+                lastSpeed = speed;
+            }
         }
     }
 
@@ -43,6 +47,12 @@ public final class ServerRotation {
 
     public static boolean canRotate(ClientPlayerEntity player) {
         return !player.isGliding() && !player.isUsingRiptide() && !player.hasVehicle() && !player.isSwimming();
+    }
+
+    /** The rotation the server would get next tick if this one were requested now. */
+    public static Rotation next(ClientPlayerEntity player, Rotation wanted) {
+        Rotation base = server != null ? server : new Rotation(player.getYaw(), player.getPitch());
+        return step(base, wanted, lastSpeed);
     }
 
     /** Called right before the movement packet of every tick (ClientPlayerEntityMixin). */

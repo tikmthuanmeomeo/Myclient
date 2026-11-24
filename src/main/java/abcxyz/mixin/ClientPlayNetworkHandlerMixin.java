@@ -2,6 +2,7 @@ package abcxyz.mixin;
 
 import abcxyz.AbcxyzClient;
 import abcxyz.core.TickRate;
+import abcxyz.module.combat.AnchorAura;
 import abcxyz.module.combat.CrystalAura;
 import abcxyz.module.combat.Velocity;
 import net.minecraft.client.MinecraftClient;
@@ -57,6 +58,8 @@ public class ClientPlayNetworkHandlerMixin {
         if (AbcxyzClient.modules == null) return;
         CrystalAura aura = AbcxyzClient.modules.get(CrystalAura.class);
         if (aura != null && aura.isEnabled()) aura.onPacket(packet);
+        AnchorAura anchor = AbcxyzClient.modules.get(AnchorAura.class);
+        if (anchor != null && anchor.isEnabled()) anchor.onPacket(packet);
     }
 
     @Inject(method = "onEntitySpawn", at = @At("TAIL"))
