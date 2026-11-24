@@ -4,7 +4,7 @@
  */
 package abcxyz.crystalaura;
 
-import com.example.client.mixin.AccessorLocalPlayer;
+import abcxyz.mixin.ClientPlayerEntityAccessor;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -203,7 +203,7 @@ public final class Crystals {
         if (player == null || mc.interactionManager == null || target == null || target.isRemoved() || player.isSpectator()) {
             return false;
         }
-        if (MeleeAttacks.actedThisTick((PlayerEntity)player) || !MeleeAttacks.handsFree(mc, player) || player.isSprinting() != ((AccessorLocalPlayer)player).anubis$wasSprinting()) {
+        if (MeleeAttacks.actedThisTick((PlayerEntity)player) || !MeleeAttacks.handsFree(mc, player) || player.isSprinting() != ((ClientPlayerEntityAccessor)player).abcxyz$wasSprinting()) {
             return false;
         }
         mc.interactionManager.attackEntity((PlayerEntity)player, target);

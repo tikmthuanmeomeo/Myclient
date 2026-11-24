@@ -15,7 +15,8 @@
     "EntityRenderDispatcherMixin",
     "CameraMixin",
     "KeyboardInputMixin",
-    "LivingEntityRendererMixin"
+    "LivingEntityRendererMixin",
+    "ClientPlayerEntityAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
