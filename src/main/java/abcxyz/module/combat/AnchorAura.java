@@ -23,6 +23,7 @@ import abcxyz.crystalaura.ServerRotation;
 import abcxyz.crystalaura.ShotView;
 import abcxyz.crystalaura.SlotReturn;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.minecraft.network.packet.Packet;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -115,16 +116,16 @@ public final class AnchorAura extends Module {
         this.view.clear();
     }
 
-    @EventHandler
-    public void onTick(TickEvent event) {
-        CrystalAuraModule crystal;
+    @Override
+    public void onTick() {
+        CrystalAura crystal = AbcxyzClient.modules == null ? null : AbcxyzClient.modules.get(CrystalAura.class);
         ++this.tick;
         MinecraftClient mc = MinecraftClient.getInstance();
         ClientPlayerEntity player = mc.player;
         if (player != null && mc.world != null) {
             LootGuard.update(mc.world, player);
         }
-        if ((crystal = ModuleRegistry.get(CrystalAuraModule.class)) != null && crystal.isEnabled() || !MeleeAttacks.canAct(mc) || player.isSpectator() || AutoInvTotemModule.wantsHotbar() || AutoCityModule.mining() || CombatMacroLock.heldByOther(this) || mc.world.getRegistryKey() == World.NETHER) {
+        if (crystal != null && crystal.isEnabled() || !MeleeAttacks.canAct(mc) || player.isSpectator() || mc.world.getRegistryKey() == World.NETHER) {
             this.slots.tick(mc, true);
             this.release();
             return;
