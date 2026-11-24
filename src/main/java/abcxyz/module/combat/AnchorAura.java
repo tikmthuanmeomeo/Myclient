@@ -335,7 +335,7 @@ public final class AnchorAura extends Module {
                 bounds.put(pos.toImmutable(), Float.valueOf(bound));
             }
         }
-        ArrayList cells = new ArrayList(bounds.keySet());
+        ArrayList<BlockPos> cells = new ArrayList<BlockPos>(bounds.keySet());
         cells.sort((a, b) -> Float.compare(((Float)bounds.get(b)).floatValue(), ((Float)bounds.get(a)).floatValue()));
         Vec3d eye = player.getEyePos();
         Combo.Shot best = null;
