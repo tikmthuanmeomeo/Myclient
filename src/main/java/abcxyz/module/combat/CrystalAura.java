@@ -758,7 +758,6 @@ public final class CrystalAura extends Module {
     }
 
     private boolean perform(MinecraftClient mc, ClientPlayerEntity player, Fight fight, Plan plan, Look look) {
-        boolean acted;
         HitResult hit;
         Vec3d eye = player.getEyePos();
         Rotation sent = ServerRotation.sent();
@@ -770,7 +769,7 @@ public final class CrystalAura extends Module {
         if (plan.route() != -2) {
             this.select(player, plan.route());
         }
-        boolean bl = hit != null && this.due(plan, 0) && (plan.step() == Step.BREAK ? this.strike(mc, player, fight, plan.crystal()) : this.place(mc, player, plan, (BlockHitResult)hit)) ? true : (acted = false);
+        boolean acted = hit != null && this.due(plan, 0) && (plan.step() == Step.BREAK ? this.strike(mc, player, fight, plan.crystal()) : this.place(mc, player, plan, (BlockHitResult)hit));
         if (acted) {
             MeleeAttacks.claimTick(mc);
         } else if (look == Look.SILENT) {
