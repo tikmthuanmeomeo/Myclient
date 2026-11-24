@@ -1,0 +1,235 @@
+/*
+ * Ported from Anubis Client (GPL-3.0-only, (c) 4ldenz), see THIRD_PARTY_NOTICES/Anubis-LICENSE.txt.
+ * Changed to run on Minecraft 1.21.4 inside the abcxyz client.
+ */
+package abcxyz.crystalaura;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.function.IntFunction;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.item.Items;
+import net.minecraft.world.World;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.network.ClientPlayerEntity;
+
+public final class Combo {
+    public static final double TARGET_RANGE = 10.0;
+    public static final int MAX_TARGETS = 3;
+    public static final float LETHAL_RANK = 1000.0f;
+    public static final float POP_RANK = 500.0f;
+    public static final float SELF_WEIGHT = 0.5f;
+    public static final float ANCHOR_EDGE = 1.0f;
+    private static final float BLAST_PROOF = 600.0f;
+    private static final double FOCUS_BONUS = 2.0;
+    private static final double WEAK_BONUS = 2.0;
+    private static final float WEAK_HEALTH = 10.0f;
+    private static final double MAX_STEP_SQR = 1.0;
+    private static final double GRAVITY = 0.08;
+    private static final double AIR_DRAG = 0.98;
+    private static final Kind[] SETUP = new Kind[]{Kind.CHARGE, Kind.CRYSTAL, Kind.OBSIDIAN, Kind.ANCHOR};
+    private static final Map<LivingEntity, Track> TRACKS = new WeakHashMap<LivingEntity, Track>();
+    private static final double PREFER_BONUS = 6.0;
+    private static LivingEntity focus;
+    private static LivingEntity preferred;
+    private static int preferredUntil;
+    private static LivingEntity flying;
+    private static IntFunction<Vec3d> flight;
+    private static int flightUntil;
+
+    private Combo() {
+    }
+
+    public static List<LivingEntity> enemies(MinecraftClient mc, ClientPlayerEntity player) {
+        ArrayList<LivingEntity> enemies = new ArrayList<LivingEntity>();
+        for (AbstractClientPlayerEntity other : mc.world.getPlayers()) {
+            if (!MeleeAttacks.isEnemy(player, (Entity)other) || !(player.squaredDistanceTo((Entity)other) < 100.0)) continue;
+            enemies.add((LivingEntity)other);
+        }
+        LivingEntity chosen = player.age <= preferredUntil ? preferred : null;
+        enemies.sort(Comparator.comparingDouble(enemy -> (double)player.distanceTo((Entity)enemy) - (enemy == focus ? 2.0 : 0.0) - (enemy == chosen ? 6.0 : 0.0) - (CrystalDamage.health(enemy) <= 10.0f ? 2.0 : 0.0)));
+        focus = enemies.isEmpty() ? null : (LivingEntity)enemies.get(0);
+        return enemies.size() > 3 ? enemies.subList(0, 3) : enemies;
+    }
+
+    public static void prefer(ClientPlayerEntity player, LivingEntity enemy) {
+        preferred = enemy;
+        preferredUntil = player.age + 2;
+    }
+
+    public static void flight(ClientPlayerEntity player, LivingEntity enemy, IntFunction<Vec3d> guess) {
+        flying = enemy;
+        flight = guess;
+        flightUntil = player.age + 2;
+    }
+
+    public static List<LivingEntity> friends(MinecraftClient mc, ClientPlayerEntity player) {
+        ArrayList<LivingEntity> friends = new ArrayList<LivingEntity>();
+        for (AbstractClientPlayerEntity other : mc.world.getPlayers()) {
+            if (other == player || !other.isAlive() || !MeleeAttacks.isFriend((Entity)other) || !(player.squaredDistanceTo((Entity)other) < 100.0)) continue;
+            friends.add((LivingEntity)other);
+        }
+        return friends;
+    }
+
+    public static Vec3d lead(LivingEntity entity, int ticks) {
+        Vec3d velocity;
+        Vec3d server = entity.getPos();
+        Vec3d lag = server.subtract(entity.getPos());
+        int ahead = ticks;
+        if (entity instanceof ClientPlayerEntity) {
+            velocity = entity.getPos().subtract(entity.prevX, entity.prevY, entity.prevZ);
+        } else {
+            Track track = TRACKS.computeIfAbsent(entity, ignored -> new Track());
+            track.note(entity, server);
+            velocity = track.velocity(entity);
+            ahead += Math.min(track.age(entity), entity.getType().getTrackTickInterval());
+            Vec3d flown = Combo.flown(entity, ticks);
+            if (flown != null) {
+                return flown;
+            }
+        }
+        if (ticks <= 0 || velocity.horizontalLengthSquared() > 1.0) {
+            return lag;
+        }
+        return lag.add(Combo.travel(entity, server, velocity, ahead));
+    }
+
+    private static Vec3d flown(LivingEntity entity, int ticks) {
+        ClientPlayerEntity self = MinecraftClient.getInstance().player;
+        if (ticks <= 0 || entity != flying || flight == null || self == null || self.age > flightUntil) {
+            return null;
+        }
+        return flight.apply(ticks);
+    }
+
+    private static Vec3d travel(LivingEntity entity, Vec3d from, Vec3d velocity, int ticks) {
+        Box box = entity.getBoundingBox().offset(from.subtract(entity.getPos()));
+        boolean floating = entity.isGliding() || entity.isInFluid() || entity.isClimbing() || entity.hasNoGravity() || entity.hasVehicle();
+        double x = velocity.x;
+        double y = velocity.y;
+        double z = velocity.z;
+        Vec3d moved = Vec3d.ZERO;
+        for (int tick = 0; tick < ticks; ++tick) {
+            if (!floating) {
+                y = (y - 0.08) * 0.98;
+            }
+            Vec3d step = Entity.adjustMovementForCollisions((Entity)entity, (Vec3d)new Vec3d(x, y, z), (Box)box, (World)entity.getWorld(), List.of());
+            if (step.x != x) {
+                x = 0.0;
+            }
+            if (step.y != y) {
+                y = 0.0;
+            }
+            if (step.z != z) {
+                z = 0.0;
+            }
+            box = box.offset(step);
+            moved = moved.add(step);
+        }
+        return moved;
+    }
+
+    public static boolean inHole(LivingEntity target) {
+        BlockPos feet = target.getBlockPos();
+        for (Direction side : Direction.Type.HORIZONTAL) {
+            BlockState state = target.getWorld().getBlockState(feet.offset(side));
+            if (!(state.getBlock().getBlastResistance() < 600.0f)) continue;
+            return false;
+        }
+        return true;
+    }
+
+    public static boolean kills(float effective, LivingEntity target) {
+        return effective >= CrystalDamage.health(target);
+    }
+
+    public static float value(float effective, LivingEntity target) {
+        float health = CrystalDamage.health(target);
+        float rank = effective < health ? 0.0f : (target.isHolding(Items.TOTEM_OF_UNDYING) ? 500.0f : 1000.0f);
+        return Math.min(effective, health) + rank;
+    }
+
+    public static Shot pick(List<Shot> shots) {
+        Shot crystal = Combo.best(shots, Kind.BREAK);
+        Shot anchor = Combo.best(shots, Kind.DETONATE);
+        if (crystal != null || anchor != null) {
+            boolean anchorWins = crystal == null || anchor != null && (anchor.value() > crystal.value() + 1.0f || anchor.kills() && !crystal.kills());
+            return anchorWins ? anchor : crystal;
+        }
+        for (Kind kind : SETUP) {
+            Shot shot = Combo.best(shots, kind);
+            if (shot == null) continue;
+            return shot;
+        }
+        return null;
+    }
+
+    private static Shot best(List<Shot> shots, Kind kind) {
+        Shot best = null;
+        for (Shot shot : shots) {
+            if (shot.kind() != kind || best != null && !(shot.value() > best.value()) && (shot.value() != best.value() || shot.readyIn() >= best.readyIn())) continue;
+            best = shot;
+        }
+        return best;
+    }
+
+        private static final class Track {
+        private Vec3d last;
+        private int lastAt;
+        private int sampledAt;
+        private Vec3d velocity = Vec3d.ZERO;
+
+        private Track() {
+        }
+
+        void note(LivingEntity entity, Vec3d server) {
+            int now = entity.age;
+            if (now < this.sampledAt) {
+                this.last = null;
+            }
+            boolean watched = now - this.sampledAt <= 1;
+            this.sampledAt = now;
+            if (server.equals((Object)this.last)) {
+                return;
+            }
+            int interval = entity.getType().getTrackTickInterval();
+            int span = watched ? interval : Math.max(interval, now - this.lastAt);
+            this.velocity = this.last == null ? Vec3d.ZERO : server.subtract(this.last).multiply(1.0 / (double)span);
+            this.last = server;
+            this.lastAt = now;
+        }
+
+        int age(LivingEntity entity) {
+            return entity.age - this.lastAt;
+        }
+
+        Vec3d velocity(LivingEntity entity) {
+            return this.age(entity) > entity.getType().getTrackTickInterval() + 1 ? Vec3d.ZERO : this.velocity;
+        }
+    }
+
+        public static enum Kind {
+        BREAK,
+        CRYSTAL,
+        OBSIDIAN,
+        ANCHOR,
+        CHARGE,
+        DETONATE;
+
+    }
+
+        public record Shot(Kind kind, Vec3d aim, int route, float value, boolean kills, int readyIn, Object plan) {
+    }
+}
+

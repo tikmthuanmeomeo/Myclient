@@ -26,6 +26,13 @@ public final class SilentRotation {
         pending = true;
     }
 
+    /** Sets the rotation that the next movement packet carries. */
+    public static void set(float newYaw, float newPitch) {
+        yaw = newYaw;
+        pitch = newPitch;
+        pending = true;
+    }
+
     /** Called before the movement packet is built. */
     public static void apply(ClientPlayerEntity player) {
         if (!pending) return;

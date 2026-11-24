@@ -1,6 +1,7 @@
 package abcxyz.mixin;
 
 import abcxyz.core.SilentRotation;
+import abcxyz.crystalaura.ServerRotation;
 import net.minecraft.client.network.ClientPlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,6 +13,7 @@ public class ClientPlayerEntityMixin {
     /** Runs once per tick, right before the movement packet (position + rotation) is built and sent. */
     @Inject(method = "sendMovementPackets", at = @At("HEAD"))
     private void abcxyz$beforeMovement(CallbackInfo ci) {
+        ServerRotation.beforeMovement((ClientPlayerEntity) (Object) this);
         SilentRotation.apply((ClientPlayerEntity) (Object) this);
     }
 

@@ -2,11 +2,15 @@ package abcxyz.mixin;
 
 import abcxyz.AbcxyzClient;
 import abcxyz.core.TickRate;
+import abcxyz.module.combat.CrystalAura;
 import abcxyz.module.combat.Velocity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntitiesDestroyS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -46,5 +50,27 @@ public class ClientPlayNetworkHandlerMixin {
     private void abcxyz$chunkDelta(ChunkDeltaUpdateS2CPacket packet, CallbackInfo ci) {
         if (AbcxyzClient.modules == null) return;
         packet.visitUpdates((pos, state) -> AbcxyzClient.modules.blockUpdate(pos.toImmutable(), state));
+    }
+
+    /** Crystal aura: it needs to hear about crystals appearing, damage and removed entities. TAIL: main-thread pass only. */
+    private void abcxyz$crystalPacket(net.minecraft.network.packet.Packet<?> packet) {
+        if (AbcxyzClient.modules == null) return;
+        CrystalAura aura = AbcxyzClient.modules.get(CrystalAura.class);
+        if (aura != null && aura.isEnabled()) aura.onPacket(packet);
+    }
+
+    @Inject(method = "onEntitySpawn", at = @At("TAIL"))
+    private void abcxyz$spawn(EntitySpawnS2CPacket packet, CallbackInfo ci) {
+        abcxyz$crystalPacket(packet);
+    }
+
+    @Inject(method = "onEntityDamage", at = @At("TAIL"))
+    private void abcxyz$damage(EntityDamageS2CPacket packet, CallbackInfo ci) {
+        abcxyz$crystalPacket(packet);
+    }
+
+    @Inject(method = "onEntitiesDestroy", at = @At("TAIL"))
+    private void abcxyz$destroy(EntitiesDestroyS2CPacket packet, CallbackInfo ci) {
+        abcxyz$crystalPacket(packet);
     }
 }

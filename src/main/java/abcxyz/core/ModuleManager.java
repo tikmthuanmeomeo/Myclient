@@ -3,6 +3,7 @@ package abcxyz.core;
 import abcxyz.gui.ClickGuiScreen;
 import abcxyz.module.combat.AutoCrystal;
 import abcxyz.module.combat.AutoTotem;
+import abcxyz.module.combat.CrystalAura;
 import abcxyz.module.combat.Hitbox;
 import abcxyz.module.combat.SafeAnchor;
 import abcxyz.module.combat.TriggerBot;
@@ -49,6 +50,7 @@ public class ModuleManager {
         modules.add(new Hitbox());
         modules.add(new Velocity());
         modules.add(new AutoTotem());
+        modules.add(new CrystalAura());
         modules.add(new AutoCrystal());
         modules.add(new SafeAnchor());
         modules.add(new Sprint());
