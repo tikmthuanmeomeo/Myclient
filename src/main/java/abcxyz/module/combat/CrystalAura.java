@@ -937,11 +937,11 @@ public final class CrystalAura extends Module {
         }
 
         boolean inView(Plan plan) {
-            if (this.fixedLook != null || CrystalAura.((float) this.viewAngle.d()) >= 180.0f) {
+            if (this.fixedLook != null || ((float) CrystalAura.this.viewAngle.d()) >= 180.0f) {
                 return true;
             }
             float off = Math.abs(RotationUtils.yawDelta(this.player.getYaw(), RotationUtils.fromTo(this.aimEye, plan.aim()).yaw()));
-            return off <= CrystalAura.((float) this.viewAngle.d()) || off <= CrystalAura.((float) this.viewAngle.d()) + 20.0f && this.holds(plan);
+            return off <= ((float) CrystalAura.this.viewAngle.d()) || off <= ((float) CrystalAura.this.viewAngle.d()) + 20.0f && this.holds(plan);
         }
 
         Vec3d towardLook(Box box) {
