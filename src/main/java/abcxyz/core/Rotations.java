@@ -58,6 +58,16 @@ public final class Rotations {
     }
 
     /** Sends the server a look towards the point without moving your camera. Call restore() after the action. */
+    /** Like silentLook, but with the angles given. */
+    public static void silentLookAngles(float yaw, float pitch) {
+        float wrapped = MathHelper.wrapDegrees(yaw);
+        float clamped = MathHelper.clamp(pitch, -90.0f, 90.0f);
+        visualYaw = wrapped;
+        visualPitch = clamped;
+        visualTime = System.currentTimeMillis();
+        send(wrapped, clamped);
+    }
+
     public static void silentLook(Vec3d target) {
         float yaw = MathHelper.wrapDegrees(yawTo(target));
         float pitch = pitchTo(target);

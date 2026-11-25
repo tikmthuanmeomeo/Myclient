@@ -5,5 +5,8 @@
 - **Anubis Client** (GNU GPL v3.0 only, (c) 4ldenz): the crystal aura (`CrystalAura` and the package
   `abcxyz.crystalaura`). License text: `Anubis-LICENSE.txt`.
 
+- **V-Core** (MIT License, (c) 2026 ngminhthuan): the structure and settings of `Aura` (kill aura) and `AutoCart` are
+  based on V-Core, rewritten for abcxyz. License text: `VCore-LICENSE.txt`.
+
 Because of the Anubis code, abcxyz as a whole is distributed under the GNU General Public License v3.0 (see `LICENSE`)
 and its source code is public: https://github.com/tikmthuanmeomeo/Myclient
