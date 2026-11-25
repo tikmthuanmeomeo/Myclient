@@ -18,7 +18,8 @@
     "LivingEntityRendererMixin",
     "ClientPlayerEntityAccessor",
     "MinecraftClientAccessor",
-    "KeyBindingAccessor"
+    "KeyBindingAccessor",
+    "ClientPlayerInteractionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

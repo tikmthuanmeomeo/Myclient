@@ -13,6 +13,7 @@ import abcxyz.module.misc.AutoRespawn;
 import abcxyz.module.misc.AutoShop;
 import abcxyz.module.misc.EasyPlace;
 import abcxyz.module.misc.FastUse;
+import abcxyz.module.misc.SpeedMine;
 import abcxyz.module.movement.Sprint;
 import abcxyz.module.render.ESP;
 import abcxyz.module.render.FullBright;
@@ -67,6 +68,7 @@ public class ModuleManager {
         modules.add(new Freecam());
         modules.add(new FreeLook());
         modules.add(new FastUse());
+        modules.add(new SpeedMine());
         modules.add(new Skybox());
         modules.add(new Skyboxify());
         modules.add(new FovChanger());
