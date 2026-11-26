@@ -117,7 +117,7 @@ public class AutoCart extends Module {
 
     // ------------------------------------------------------------------ the step runner
 
-    /** Runs the action after the given wait (ms), after everything that was queued before. */
+    /** Runs the action once the given wait (ms) has passed since the step before it. */
     private void queue(long waitMs, Runnable action) {
         steps.add(action);
         waits.add(waitMs);
@@ -125,7 +125,8 @@ public class AutoCart extends Module {
 
     private void start() {
         running = true;
-        nextAt = System.currentTimeMillis();
+        Long first = waits.peek();
+        nextAt = System.currentTimeMillis() + (first == null ? 0L : first);
     }
 
     @Override
@@ -134,7 +135,7 @@ public class AutoCart extends Module {
         long now = System.currentTimeMillis();
         if (now < nextAt) return;
         Runnable action = steps.poll();
-        Long wait = waits.poll();
+        waits.poll(); // the wait before this step is over
         if (action == null) {
             running = false;
             return;
@@ -148,7 +149,8 @@ public class AutoCart extends Module {
             looking = false;
             return;
         }
-        nextAt = System.currentTimeMillis() + (wait == null ? 0L : wait);
+        Long nextWait = waits.peek();
+        nextAt = System.currentTimeMillis() + (nextWait == null ? 0L : nextWait);
         if (steps.isEmpty()) running = false;
     }
 
