@@ -3,6 +3,7 @@ package abcxyz.mixin;
 import abcxyz.AbcxyzClient;
 import abcxyz.core.TickRate;
 import abcxyz.module.combat.AnchorAura;
+import abcxyz.module.combat.AutoCart;
 import abcxyz.module.combat.CrystalAura;
 import abcxyz.module.combat.Velocity;
 import net.minecraft.client.MinecraftClient;
@@ -12,6 +13,7 @@ import net.minecraft.network.packet.s2c.play.ChunkDeltaUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntitiesDestroyS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.WorldTimeUpdateS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -75,5 +77,17 @@ public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "onEntitiesDestroy", at = @At("TAIL"))
     private void abcxyz$destroy(EntitiesDestroyS2CPacket packet, CallbackInfo ci) {
         abcxyz$crystalPacket(packet);
+    }
+
+    /** AutoCart's cart aura: status 35 is a totem popping. */
+    @Inject(method = "onEntityStatus", at = @At("TAIL"))
+    private void abcxyz$totemPop(EntityStatusS2CPacket packet, CallbackInfo ci) {
+        if (AbcxyzClient.modules == null || packet.getStatus() != 35) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.world == null) return;
+        net.minecraft.entity.Entity entity = packet.getEntity(mc.world);
+        if (!(entity instanceof net.minecraft.entity.player.PlayerEntity player)) return;
+        AutoCart cart = AbcxyzClient.modules.get(AutoCart.class);
+        if (cart != null && cart.isEnabled()) cart.onTotemPop(player);
     }
 }
